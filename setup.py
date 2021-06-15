@@ -3,10 +3,11 @@ from setuptools import setup, find_packages
 
 setup(
     name='django-sql-compiler',
-    version='0.0.1a',
+    version='0.0.5a',
     description="A light-weight module to generate usable SQL from a Django QuerySet.",
     long_description=open('README.md').read(),
-    author='Jared Stufft',
+    long_description_content_type='text/markdown',
+    author='Grok Data / Jared Stufft',
     author_email='jared@grokdata.tech',
     url='https://github.com/GrokData/django-sql-compiler',
     license='MIT',
