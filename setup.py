@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='django-sql-compiler',
-    version='0.0.5a',
+    version='0.1.1',
     description="A light-weight module to generate usable SQL from a Django QuerySet.",
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',

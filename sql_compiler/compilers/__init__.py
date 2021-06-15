@@ -1,9 +1,17 @@
-from .postgresql import PostgresCompiler
+from .postgresql import PostgresCompiler, PostgresTenantsCompiler, Psycopg2Compiler
 
-__all__ = ['PostgresCompiler', 'compiler_map', 'SUPPORTED_BACKENDS']
+__all__ = [
+    'PostgresCompiler',
+    'PostgresTenantsCompiler',
+    'Psycopg2Compiler',
+    'compiler_map',
+    'SUPPORTED_BACKENDS'
+]
 
 compilers = [
-    PostgresCompiler
+    PostgresCompiler,
+    PostgresTenantsCompiler,
+    Psycopg2Compiler
 ]
 
 compiler_map = {

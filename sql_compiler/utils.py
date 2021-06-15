@@ -11,10 +11,6 @@ def validate_connection(connection):
     """
 
     backend_name = connection.settings_dict['ENGINE']
-
-    if backend_name in ('django.db.backends.postgresql_psycopg2', 'django_tenants.postgresql_backend'):
-        backend_name = 'django.db.backends.postgresql'
-
     if backend_name in SUPPORTED_BACKENDS:
         return connection
 

@@ -14,3 +14,11 @@ class PostgresCompiler(BaseSQLCompiler):
             compiled_sql = cursor.mogrify(query, params)
 
         return compiled_sql
+
+
+class PostgresTenantsCompiler(PostgresCompiler):
+    backend_name = 'django_tenants.postgresql_backend'
+
+
+class Psycopg2Compiler(PostgresCompiler):
+    backend_name = 'django.db.backends.postgresql_psycopg2'
