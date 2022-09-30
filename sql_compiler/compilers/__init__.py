@@ -1,6 +1,8 @@
 from .postgresql import PostgresCompiler, PostgresTenantsCompiler, Psycopg2Compiler
+from .mysql import MySQLCompiler
 
 __all__ = [
+    'MySQLCompiler',
     'PostgresCompiler',
     'PostgresTenantsCompiler',
     'Psycopg2Compiler',
@@ -9,6 +11,7 @@ __all__ = [
 ]
 
 compilers = [
+    MySQLCompiler,
     PostgresCompiler,
     PostgresTenantsCompiler,
     Psycopg2Compiler
