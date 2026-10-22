@@ -70,6 +70,8 @@ Linear project **"django-sql-compiler modernization"** (P-GRO-1, team Grok Data 
 | CI runs DB tests against Postgres and MySQL service containers | Driver escaping can only be verified against a real DB | — Pending |
 | Milestone done = merged to master, no release | Release decided separately | — Pending |
 | Packaging metadata folded into GRO-6 (UV migration) | Same files, same change | — Pending |
+| `/work` owns Triage → Spec Review; GSD plans/executes/ships from Ready to Work, using Linear specs as `--prd` input | One spec process, no duplicate discuss-phase; Linear stays the source of truth | — Pending |
+| Each phase tracks exactly one GRO issue (an issue may span phases); one branch + PR per issue | GSD works one issue at a time, matching `/work`; enforced by `check_roadmap.py` + pre-commit hook | — Pending |
 
 ## Evolution
 

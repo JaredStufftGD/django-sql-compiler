@@ -2,7 +2,7 @@
 
 **Defined:** 2026-10-22
 **Core Value:** `executable_query` must return SQL that is exactly what the database would execute for that queryset — correctly escaped by the real driver, for the right backend, with no silent data corruption.
-**Source of truth:** Linear project P-GRO-1. Each requirement cites its GRO-# issue; Linear owns status.
+**Source of truth:** Linear project P-GRO-1. Each requirement cites its GRO-# issue; Linear owns status. When an issue's spec is approved, its acceptance criteria supersede the requirement text here (reconciled by `/work` at Ready to Work).
 
 ## v1 Requirements
 
@@ -30,7 +30,7 @@
 - [ ] **CI-01**: Every push and pull request runs the test suite on GitHub Actions — GRO-8
 - [ ] **CI-02**: CI runs a Python × Django matrix covering the supported range (Django 4.2 / 5.2 / current, Python 3.10+) — GRO-8
 - [ ] **CI-03**: CI runs the DB-backed tests against PostgreSQL and MySQL service containers — GRO-8
-- [ ] **CI-04**: CI runs the Postgres tests under both psycopg2 and psycopg 3 — GRO-8, GRO-14
+- [ ] **CI-04**: CI runs the Postgres tests under both psycopg2 and psycopg 3 — GRO-14 (extends the GRO-8 workflow)
 
 ### Bug Fixes
 
@@ -86,26 +86,26 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PKG-03 | GRO-6 | Phase 1 | Pending |
 | PKG-04 | GRO-6 | Phase 1 | Pending |
 | PKG-05 | GRO-6 | Phase 1 | Pending |
-| TEST-01 | GRO-5 | Phase 1 | Pending |
-| TEST-02 | GRO-5 | Phase 1 | Pending |
-| TEST-03 | GRO-5 | Phase 1 | Pending |
-| DBT-01 | GRO-7 | Phase 2 | Pending |
-| DBT-02 | GRO-7 | Phase 2 | Pending |
+| TEST-01 | GRO-5 | Phase 2 | Pending |
+| TEST-02 | GRO-5 | Phase 2 | Pending |
+| TEST-03 | GRO-5 | Phase 2 | Pending |
+| DBT-01 | GRO-7 | Phase 3 | Pending |
+| DBT-02 | GRO-7 | Phase 3 | Pending |
 | CI-01 | GRO-8 | Phase 4 | Pending |
 | CI-02 | GRO-8 | Phase 4 | Pending |
 | CI-03 | GRO-8 | Phase 4 | Pending |
-| CI-04 | GRO-8 / GRO-14 | Phase 4 | Pending |
-| FIX-01 | GRO-9 | Phase 3 | Pending |
-| FIX-02 | GRO-10 | Phase 3 | Pending |
-| FIX-03 | GRO-11 | Phase 3 | Pending |
-| FIX-04 | GRO-12 | Phase 3 | Pending |
-| FIX-05 | GRO-13 | Phase 3 | Pending |
-| PG3-01 | GRO-14 | Phase 3 | Pending |
-| PG3-02 | GRO-14 | Phase 3 | Pending |
-| PG3-03 | GRO-14 | Phase 3 | Pending |
-| DOC-01 | GRO-15 | Phase 4 | Pending |
-| DOC-02 | GRO-15 | Phase 4 | Pending |
-| DOC-03 | GRO-15 | Phase 4 | Pending |
+| CI-04 | GRO-14 | Phase 10 | Pending |
+| FIX-01 | GRO-9 | Phase 9 | Pending |
+| FIX-02 | GRO-10 | Phase 7 | Pending |
+| FIX-03 | GRO-11 | Phase 5 | Pending |
+| FIX-04 | GRO-12 | Phase 6 | Pending |
+| FIX-05 | GRO-13 | Phase 8 | Pending |
+| PG3-01 | GRO-14 | Phase 10 | Pending |
+| PG3-02 | GRO-14 | Phase 10 | Pending |
+| PG3-03 | GRO-14 | Phase 10 | Pending |
+| DOC-01 | GRO-15 | Phase 11 | Pending |
+| DOC-02 | GRO-15 | Phase 11 | Pending |
+| DOC-03 | GRO-15 | Phase 11 | Pending |
 
 **Coverage:**
 - v1 requirements: 25 total
@@ -114,4 +114,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-10-22*
-*Last updated: 2026-10-22 after roadmap creation*
+*Last updated: 2026-10-22 after roadmap re-split (11 phases, one GRO issue each)*

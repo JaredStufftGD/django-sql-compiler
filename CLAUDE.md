@@ -31,6 +31,15 @@ Compilers (`sql_compiler/compilers/`):
 
 **Adding a backend:** subclass `BaseSQLCompiler`, set `backend_name` to the ENGINE string, and add the class to the `compilers` list in `compilers/__init__.py`. `compiler_map` and `SUPPORTED_BACKENDS` are derived from that list. `compile_sql` must return bytes, because the queryset always runs `bytes_to_string` on the result. Also update the "Backend Support" section of README.md.
 
+## Planning (Linear + GSD)
+
+Linear project P-GRO-1 is the source of truth for scope and status. The `/work` skill moves issues through Linear and hands planning, execution, and shipping to GSD.
+
+- **Each GSD phase tracks exactly one Linear issue:** one `**Linear:** <ISSUE-ID>` line per phase in `.planning/ROADMAP.md`. An issue may span several phases; a phase never covers several issues, or none. This applies to every roadmap change, including new, inserted, split, and gap-closure phases. Work with no Linear issue needs one created first (with the user's approval).
+- Check with `python ~/.claude/skills/work/check_roadmap.py .planning/ROADMAP.md`. The repo's pre-commit hook runs the same check and blocks commits that break the rule.
+- Approved Linear specs win over `.planning/` when they disagree. GSD never changes Linear statuses.
+- One branch and one PR per issue, named with the issue's Linear `gitBranchName`.
+
 <!-- GSD:project-start source:PROJECT.md -->
 ## Project
 
