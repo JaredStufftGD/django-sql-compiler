@@ -23,7 +23,7 @@ See: .planning/PROJECT.md (updated 2026-10-22)
 Phase: none yet (phases are added per issue by `/work` at Ready to Work)
 Plan: -
 Status: No issue in Ready to Work yet
-Last activity: 2026-10-22 - Switched to Linear-as-roadmap; ROADMAP.md is now an add-only log, REQUIREMENTS.md removed
+Last activity: 2026-10-22 - Completed quick task 261022-pgb: Update branching rule docs for per-phase branches
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -66,6 +66,12 @@ None yet.
 
 - Developer machine is Windows and CI is Linux. DB-backed tests (GRO-7) need local Postgres/MySQL instances, or they will be skipped until CI (GRO-8) exists.
 - `Query.sql_with_params()` and `Manager._db` are Django internals. Check GRO-10 against Django 4.2, 5.2, and current.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 261022-pgb | Update branching rule docs for per-phase branches | 2026-10-22 | 922dca6 | [261022-pgb-update-branching-rule-docs-for-per-phase](./quick/261022-pgb-update-branching-rule-docs-for-per-phase/) |
 
 ## Deferred Items
 
