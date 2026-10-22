@@ -56,7 +56,7 @@ Recent decisions affecting current work:
 - [Process]: Linear P-GRO-1 is the only roadmap. ROADMAP.md is an add-only log of issues worked through the full phase process; REQUIREMENTS.md is not used (specs live in Linear).
 - [Process]: At Ready to Work, `/work` picks `gsd-quick --research --validate` (small, single-plan issues) or the full phase process (adds phase(s) for the issue, then `gsd-plan-phase N --prd`). `/gsd-discuss-phase` / `--discuss` are never used; the Linear spec replaces them.
 - [Process]: Each phase tracks exactly one Linear issue (an issue may span several phases). Enforced by `~/.claude/skills/work/check_roadmap.py` via `/work` and the repo pre-commit hook.
-- [Config]: git.branching_strategy = none; `/work` checks out the issue's Linear branch (`gitBranchName`), giving one branch and one PR per issue. git.base_branch = master.
+- [Config]: git.branching_strategy = none; `/work` checks out the issue's Linear branch (`gitBranchName`), for quick-path and single-phase issues (one branch, one PR); for multi-phase issues, one branch and PR per phase named `<gitBranchName>-phase-<N>`, each cut from up-to-date master after the previous phase's PR merges. git.base_branch = master.
 
 ### Pending Todos
 

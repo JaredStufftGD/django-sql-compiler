@@ -62,7 +62,7 @@ Tracked in Linear (P-GRO-1), not here. Each issue's approved spec is its require
 | Packaging metadata folded into GRO-6 (UV migration) | Same files, same change | — Pending |
 | Linear is the only roadmap; no pre-planned GSD phases, no REQUIREMENTS.md | Avoid maintaining two roadmaps | — Pending |
 | `/work` owns Triage → Spec Review; at Ready to Work it chooses `gsd-quick` or full phases, with the Linear spec as input (never discuss-phase) | One spec process; GSD effort scaled to the issue | — Pending |
-| Each phase tracks exactly one GRO issue (an issue may span phases); one branch + PR per issue | GSD works one issue at a time, matching `/work`; enforced by `check_roadmap.py` + pre-commit hook | — Pending |
+| Each phase tracks exactly one GRO issue (an issue may span phases); one branch + PR per issue, or per phase for multi-phase issues (`<gitBranchName>-phase-<N>`, cut from merged master) | GSD works one issue at a time, matching `/work`; enforced by `check_roadmap.py` + pre-commit hook | — Pending |
 
 ## Evolution
 

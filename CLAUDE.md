@@ -38,7 +38,7 @@ Linear project P-GRO-1 is the roadmap: scope, specs, ordering, and status. The `
 - **Each GSD phase tracks exactly one Linear issue:** one `**Linear:** <ISSUE-ID>` line per phase in `.planning/ROADMAP.md`. An issue may span several phases; a phase never covers several issues, or none. This applies to every phase, including inserted, split, and gap-closure phases. Work with no Linear issue needs one created first (with the user's approval).
 - Check with `python ~/.claude/skills/work/check_roadmap.py .planning/ROADMAP.md`. The repo's pre-commit hook runs the same check and blocks commits that break the rule.
 - Approved Linear specs win over `.planning/` when they disagree. GSD never changes Linear statuses.
-- One branch and one PR per issue, named with the issue's Linear `gitBranchName`.
+- Quick-path and single-phase issues get one branch and one PR, named with the issue's Linear `gitBranchName`. Multi-phase issues get one branch and one PR per phase, named `<gitBranchName>-phase-<N>`, each cut from up-to-date master after the previous phase's PR merges, so each phase plans against reviewed code.
 
 <!-- GSD:project-start source:PROJECT.md -->
 ## Project
