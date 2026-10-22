@@ -81,37 +81,37 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Linear | Phase | Status |
 |-------------|--------|-------|--------|
-| PKG-01 | GRO-6 | — | Pending |
-| PKG-02 | GRO-6 | — | Pending |
-| PKG-03 | GRO-6 | — | Pending |
-| PKG-04 | GRO-6 | — | Pending |
-| PKG-05 | GRO-6 | — | Pending |
-| TEST-01 | GRO-5 | — | Pending |
-| TEST-02 | GRO-5 | — | Pending |
-| TEST-03 | GRO-5 | — | Pending |
-| DBT-01 | GRO-7 | — | Pending |
-| DBT-02 | GRO-7 | — | Pending |
-| CI-01 | GRO-8 | — | Pending |
-| CI-02 | GRO-8 | — | Pending |
-| CI-03 | GRO-8 | — | Pending |
-| CI-04 | GRO-8 / GRO-14 | — | Pending |
-| FIX-01 | GRO-9 | — | Pending |
-| FIX-02 | GRO-10 | — | Pending |
-| FIX-03 | GRO-11 | — | Pending |
-| FIX-04 | GRO-12 | — | Pending |
-| FIX-05 | GRO-13 | — | Pending |
-| PG3-01 | GRO-14 | — | Pending |
-| PG3-02 | GRO-14 | — | Pending |
-| PG3-03 | GRO-14 | — | Pending |
-| DOC-01 | GRO-15 | — | Pending |
-| DOC-02 | GRO-15 | — | Pending |
-| DOC-03 | GRO-15 | — | Pending |
+| PKG-01 | GRO-6 | Phase 1 | Pending |
+| PKG-02 | GRO-6 | Phase 1 | Pending |
+| PKG-03 | GRO-6 | Phase 1 | Pending |
+| PKG-04 | GRO-6 | Phase 1 | Pending |
+| PKG-05 | GRO-6 | Phase 1 | Pending |
+| TEST-01 | GRO-5 | Phase 1 | Pending |
+| TEST-02 | GRO-5 | Phase 1 | Pending |
+| TEST-03 | GRO-5 | Phase 1 | Pending |
+| DBT-01 | GRO-7 | Phase 2 | Pending |
+| DBT-02 | GRO-7 | Phase 2 | Pending |
+| CI-01 | GRO-8 | Phase 4 | Pending |
+| CI-02 | GRO-8 | Phase 4 | Pending |
+| CI-03 | GRO-8 | Phase 4 | Pending |
+| CI-04 | GRO-8 / GRO-14 | Phase 4 | Pending |
+| FIX-01 | GRO-9 | Phase 3 | Pending |
+| FIX-02 | GRO-10 | Phase 3 | Pending |
+| FIX-03 | GRO-11 | Phase 3 | Pending |
+| FIX-04 | GRO-12 | Phase 3 | Pending |
+| FIX-05 | GRO-13 | Phase 3 | Pending |
+| PG3-01 | GRO-14 | Phase 3 | Pending |
+| PG3-02 | GRO-14 | Phase 3 | Pending |
+| PG3-03 | GRO-14 | Phase 3 | Pending |
+| DOC-01 | GRO-15 | Phase 4 | Pending |
+| DOC-02 | GRO-15 | Phase 4 | Pending |
+| DOC-03 | GRO-15 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 25 total
-- Mapped to phases: 0
-- Unmapped: 25 ⚠️ (filled by roadmap)
+- Mapped to phases: 25
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-10-22*
-*Last updated: 2026-10-22 after initialization*
+*Last updated: 2026-10-22 after roadmap creation*
