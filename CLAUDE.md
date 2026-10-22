@@ -33,9 +33,9 @@ Compilers (`sql_compiler/compilers/`):
 
 ## Planning (Linear + GSD)
 
-Linear project P-GRO-1 is the source of truth for scope and status. The `/work` skill moves issues through Linear and hands planning, execution, and shipping to GSD.
+Linear project P-GRO-1 is the roadmap: scope, specs, ordering, and status. The `/work` skill moves issues through Linear and, at Ready to Work, runs either `gsd-quick` or the full GSD phase process for that one issue. Don't pre-plan phases in `.planning/ROADMAP.md`: it is an add-only log that `/work` appends to. There is no REQUIREMENTS.md; the issue's Linear spec is its requirements.
 
-- **Each GSD phase tracks exactly one Linear issue:** one `**Linear:** <ISSUE-ID>` line per phase in `.planning/ROADMAP.md`. An issue may span several phases; a phase never covers several issues, or none. This applies to every roadmap change, including new, inserted, split, and gap-closure phases. Work with no Linear issue needs one created first (with the user's approval).
+- **Each GSD phase tracks exactly one Linear issue:** one `**Linear:** <ISSUE-ID>` line per phase in `.planning/ROADMAP.md`. An issue may span several phases; a phase never covers several issues, or none. This applies to every phase, including inserted, split, and gap-closure phases. Work with no Linear issue needs one created first (with the user's approval).
 - Check with `python ~/.claude/skills/work/check_roadmap.py .planning/ROADMAP.md`. The repo's pre-commit hook runs the same check and blocks commits that break the rule.
 - Approved Linear specs win over `.planning/` when they disagree. GSD never changes Linear statuses.
 - One branch and one PR per issue, named with the issue's Linear `gitBranchName`.

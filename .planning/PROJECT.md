@@ -10,7 +10,7 @@ A small reusable Django app (PyPI `django-sql-compiler`, package `sql_compiler`)
 
 ## Source of Truth
 
-Linear project **"django-sql-compiler modernization"** (P-GRO-1, team Grok Data / GRO, label `django-sql-compiler`) owns scope and status. Every requirement and phase in `.planning/` references its GRO-# issue. New work discovered during planning is drafted as a Linear issue and created only after approval.
+Linear project **"django-sql-compiler modernization"** (P-GRO-1, team Grok Data / GRO, label `django-sql-compiler`) is the roadmap: it owns scope, specs, ordering (issue relations), and status. `.planning/` holds no plan of its own. `/work` drives each issue; at Ready to Work it runs either `gsd-quick` or the full GSD phase process for that one issue. New work discovered during planning is drafted as a Linear issue and created only after approval.
 
 ## Requirements
 
@@ -23,17 +23,7 @@ Linear project **"django-sql-compiler modernization"** (P-GRO-1, team Grok Data 
 
 ### Active
 
-- [ ] Packaging on uv + `pyproject.toml`, Python ≥3.10, Django 4.2/5.2/current, driver extras — GRO-6
-- [ ] Pytest suite with no-DB unit tests in top-level `tests/` — GRO-5
-- [ ] DB-backed `executable_query` tests against live Postgres and MySQL, skipped without a DB — GRO-7
-- [ ] CI (GitHub Actions) running the suite on a Python/Django matrix with Postgres and MySQL service containers — GRO-8
-- [ ] Non-ASCII parameters round-trip correctly (decode with connection encoding) — GRO-9
-- [ ] SQL compiled with the queryset's DB alias, not the default — GRO-10
-- [ ] MySQL param mismatch raises `ProgrammingError`, not `NameError` — GRO-11
-- [ ] Unsupported-backend error names the configured ENGINE — GRO-12
-- [ ] `.none()` / empty-result querysets return valid zero-row SQL — GRO-13
-- [ ] Postgres compilers work with both psycopg2 and psycopg 3 — GRO-14
-- [ ] README documents all ENGINEs, drivers, version range, and safe-usage caveats — GRO-15
+Tracked in Linear (P-GRO-1), not here. Each issue's approved spec is its requirements.
 
 ### Out of Scope
 
@@ -70,7 +60,8 @@ Linear project **"django-sql-compiler modernization"** (P-GRO-1, team Grok Data 
 | CI runs DB tests against Postgres and MySQL service containers | Driver escaping can only be verified against a real DB | — Pending |
 | Milestone done = merged to master, no release | Release decided separately | — Pending |
 | Packaging metadata folded into GRO-6 (UV migration) | Same files, same change | — Pending |
-| `/work` owns Triage → Spec Review; GSD plans/executes/ships from Ready to Work, using Linear specs as `--prd` input | One spec process, no duplicate discuss-phase; Linear stays the source of truth | — Pending |
+| Linear is the only roadmap; no pre-planned GSD phases, no REQUIREMENTS.md | Avoid maintaining two roadmaps | — Pending |
+| `/work` owns Triage → Spec Review; at Ready to Work it chooses `gsd-quick` or full phases, with the Linear spec as input (never discuss-phase) | One spec process; GSD effort scaled to the issue | — Pending |
 | Each phase tracks exactly one GRO issue (an issue may span phases); one branch + PR per issue | GSD works one issue at a time, matching `/work`; enforced by `check_roadmap.py` + pre-commit hook | — Pending |
 
 ## Evolution
@@ -80,7 +71,7 @@ This document evolves at phase transitions and milestone boundaries.
 **After each phase transition** (via `/gsd-transition`):
 1. Requirements invalidated? → Move to Out of Scope with reason
 2. Requirements validated? → Move to Validated with phase reference
-3. New requirements emerged? → Draft Linear issue, add to Active once created
+3. New requirements emerged? → Draft a Linear issue (created only after approval)
 4. Decisions to log? → Add to Key Decisions
 5. "What This Is" still accurate? → Update if drifted
 
@@ -91,4 +82,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-10-22 after initialization*
+*Last updated: 2026-10-22 after switching to Linear-as-roadmap*
