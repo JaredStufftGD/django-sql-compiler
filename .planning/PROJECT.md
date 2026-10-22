@@ -2,15 +2,15 @@
 
 ## What This Is
 
-A small reusable Django app (PyPI `django-sql-compiler`, package `sql_compiler`) that turns a Django `QuerySet` into fully interpolated, driver-escaped, executable SQL via `queryset.executable_query`, for embedding ORM-built queries in raw SQL (CTEs, subqueries). This milestone fixes known correctness bugs, adds a real test suite with CI, and modernizes packaging.
+A small reusable Django app (PyPI `django-sql-compiler`, package `sql_compiler`) that is pivoting to safe SQL composition for Django querysets: a public `(sql, params)` API compiled for the queryset's own database; `compose()` for embedding several querysets in one hand-written query, with params in placeholder order and every value bound by the driver; and typed result rows. `executable_query` is kept (with fixes) for when a finished literal string is required (COPY, CREATE VIEW, logs, other tools). Work ships in two releases: Release 0.2.0 (correctness fixes plus tests; PyPI latest is still 0.1.1 and an unknown team's CI installs it ~1.7k times/month, so it must not break Postgres users on unpinned installs), then Release 1.0 (composition APIs, psycopg 3, CI, repositioned README).
 
 ## Core Value
 
-`executable_query` must return SQL that is exactly what the database would execute for that queryset — correctly escaped by the real driver, for the right backend, with no silent data corruption.
+combining ORM querysets with hand-written SQL must produce exactly what the database would execute — values bound by the real driver (or, for `executable_query`, escaped by it), for the right backend/alias, with no silent data corruption or misaligned params.
 
 ## Source of Truth
 
-Linear project **"django-sql-compiler modernization"** (P-GRO-1, team Grok Data / GRO, label `django-sql-compiler`) is the roadmap: it owns scope, specs, ordering (issue relations), and status. `.planning/` holds no plan of its own. `/work` drives each issue; at Ready to Work it runs either `gsd-quick` or the full GSD phase process for that one issue. New work discovered during planning is drafted as a Linear issue and created only after approval.
+Linear project **"django-sql-compiler: safe SQL composition"** (P-GRO-1, renamed from "django-sql-compiler modernization"; team Grok Data / GRO, label `django-sql-compiler`; milestones "Release 0.2.0: fixes" and "Release 1.0: composition") is the roadmap: it owns scope, specs, ordering (issue relations), and status. `.planning/` holds no plan of its own. `/work` drives each issue; at Ready to Work it runs either `gsd-quick` or the full GSD phase process for that one issue. New work discovered during planning is drafted as a Linear issue and created only after approval.
 
 ## Requirements
 
@@ -27,9 +27,8 @@ Tracked in Linear (P-GRO-1), not here. Each issue's approved spec is its require
 
 ### Out of Scope
 
-- PyPI release / version bump — milestone ends at merged-to-master; releasing is a later decision
-- Automated publish workflow (trusted publishing) — follows the release decision
-- New backends (SQLite, Oracle, MSSQL) — not requested; bugs and hardening first
+- Automated publish workflow (trusted publishing) — decide during GRO-21
+- New backends (SQLite, Oracle, MSSQL) for `executable_query` — not requested; the parameterized APIs work on any Django backend
 - Django < 4.2 or Python < 3.10 — only currently supported Django releases are targeted
 - Escaping `%` → `%%` in output automatically — documented as a caveat (GRO-15) instead of changing output semantics
 - Consolidating the duplicated Postgres compiler classes — only if it falls out naturally from GRO-14
@@ -58,11 +57,13 @@ Tracked in Linear (P-GRO-1), not here. Each issue's approved spec is its require
 | Support both psycopg2 and psycopg 3 | Django 4.2+ users may be on either driver | — Pending |
 | Target Django 4.2 / 5.2 / current, Python ≥3.10 | Only upstream-supported releases | — Pending |
 | CI runs DB tests against Postgres and MySQL service containers | Driver escaping can only be verified against a real DB | — Pending |
-| Milestone done = merged to master, no release | Release decided separately | — Pending |
+| Superseded: two releases instead of a no-release milestone (0.2.0 fixes, 1.0 composition; GRO-21, GRO-22) | Users on unpinned installs need fixes shipped; composition is a separate, larger release | — Pending |
 | Packaging metadata folded into GRO-6 (UV migration) | Same files, same change | — Pending |
 | Linear is the only roadmap; no pre-planned GSD phases, no REQUIREMENTS.md | Avoid maintaining two roadmaps | — Pending |
 | `/work` owns Triage → Spec Review; at Ready to Work it chooses `gsd-quick` or full phases, with the Linear spec as input (never discuss-phase) | One spec process; GSD effort scaled to the issue | — Pending |
 | Each phase tracks exactly one GRO issue (an issue may span phases); one branch + PR per issue, or per phase for multi-phase issues (`<gitBranchName>-phase-<N>`, cut from merged master) | GSD works one issue at a time, matching `/work`; enforced by `check_roadmap.py` + pre-commit hook | — Pending |
+| Pivot to safe SQL composition instead of sunsetting (2026-10-22) | No package composes querysets into hand-written SQL safely; long-running Django gap (#25705, #21604, #28919); driver binding is safer than interpolation | — Pending |
+| Contribute only a public sql_with_params() to Django core (GRO-20); everything else stays in the package | Core rejects executable str(qs.query); big APIs land in core only after a proven package | — Pending |
 
 ## Evolution
 
@@ -82,4 +83,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-10-22 after switching to Linear-as-roadmap*
+*Last updated: 2026-10-22 after the pivot to safe SQL composition*
