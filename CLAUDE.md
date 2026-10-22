@@ -45,9 +45,9 @@ Linear project P-GRO-1 is the roadmap: scope, specs, ordering, and status. The `
 
 **django-sql-compiler**
 
-A small reusable Django app (PyPI `django-sql-compiler`, package `sql_compiler`) that turns a Django `QuerySet` into fully interpolated, driver-escaped, executable SQL via `queryset.executable_query`, for embedding ORM-built queries in raw SQL (CTEs, subqueries). This milestone fixes known correctness bugs, adds a real test suite with CI, and modernizes packaging.
+A small reusable Django app (PyPI `django-sql-compiler`, package `sql_compiler`) that is pivoting to safe SQL composition for Django querysets: a public `(sql, params)` API compiled for the queryset's own database; `compose()` for embedding several querysets in one hand-written query, with params in placeholder order and every value bound by the driver; and typed result rows. `executable_query` is kept (with fixes) for when a finished literal string is required (COPY, CREATE VIEW, logs, other tools). Work ships in two releases: Release 0.2.0 (correctness fixes plus tests; PyPI latest is still 0.1.1 and an unknown team's CI installs it ~1.7k times/month, so it must not break Postgres users on unpinned installs), then Release 1.0 (composition APIs, psycopg 3, CI, repositioned README).
 
-**Core Value:** `executable_query` must return SQL that is exactly what the database would execute for that queryset — correctly escaped by the real driver, for the right backend, with no silent data corruption.
+**Core Value:** combining ORM querysets with hand-written SQL must produce exactly what the database would execute — values bound by the real driver (or, for `executable_query`, escaped by it), for the right backend/alias, with no silent data corruption or misaligned params.
 
 ### Constraints
 
