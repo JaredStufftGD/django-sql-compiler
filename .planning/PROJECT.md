@@ -6,7 +6,7 @@ A small reusable Django app (PyPI `django-sql-compiler`, package `sql_compiler`)
 
 ## Core Value
 
-combining ORM querysets with hand-written SQL must produce exactly what the database would execute — values bound by the real driver (or, for `executable_query`, escaped by it), for the right backend/alias, with no silent data corruption or misaligned params.
+Combining ORM querysets with hand-written SQL must produce exactly what the database would execute — values bound by the real driver (or, for `executable_query`, escaped by it), for the right backend/alias, with no silent data corruption or misaligned params.
 
 ## Source of Truth
 

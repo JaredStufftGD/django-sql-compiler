@@ -23,7 +23,7 @@ See: .planning/PROJECT.md (updated 2026-10-22)
 Phase: none yet (phases are added per issue by `/work` at Ready to Work)
 Plan: -
 Status: No issue in Ready to Work yet
-Last activity: 2026-10-22 - Completed quick task 261022-pgb: Update branching rule docs for per-phase branches
+Last activity: 2026-10-22 - Completed quick task 261022-qoy: Update PROJECT.md for the pivot to safe SQL composition
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -72,6 +72,7 @@ None yet.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 261022-pgb | Update branching rule docs for per-phase branches | 2026-10-22 | 922dca6 | [261022-pgb-update-branching-rule-docs-for-per-phase](./quick/261022-pgb-update-branching-rule-docs-for-per-phase/) |
+| 261022-qoy | Update PROJECT.md for the pivot to safe SQL composition | 2026-10-22 | 574249f | [261022-qoy-update-project-md-for-the-pivot-to-safe-](./quick/261022-qoy-update-project-md-for-the-pivot-to-safe-/) |
 
 ## Deferred Items
 
