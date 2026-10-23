@@ -1,0 +1,37 @@
+[project]
+name = "django-sql-compiler"
+version = "0.2.3"
+description = "A light-weight module to generate usable SQL from a Django QuerySet."
+readme = "README.md"
+authors = [
+    { name = "Grok Data / Jared Stufft", email = "jared@grokdata.tech" },
+]
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+dependencies = [
+    "Django>=4.2",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Web Environment",
+    "Framework :: Django",
+    "Programming Language :: Python :: 3",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.urls]
+Homepage = "https://github.com/JaredStufftGD/django-sql-compiler"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+]
+
+[build-system]
+requires = ["flit_core>=4,<5"]
+build-backend = "flit_core.buildapi"
+
+[tool.flit.module]
+name = "sql_compiler"
