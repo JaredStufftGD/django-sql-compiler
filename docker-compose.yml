@@ -1,0 +1,30 @@
+# Throwaway test databases for the DB-backed tests; the credentials are not secrets.
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: sqlcompiler
+      POSTGRES_PASSWORD: sqlcompiler
+      POSTGRES_DB: sqlcompiler
+    ports:
+      - "127.0.0.1:55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sqlcompiler -d sqlcompiler"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  mysql:
+    image: mysql:8.4
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: sqlcompiler
+      MYSQL_DATABASE: sqlcompiler
+      MYSQL_USER: sqlcompiler
+      MYSQL_PASSWORD: sqlcompiler
+    ports:
+      - "127.0.0.1:53306:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -psqlcompiler --silent"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
