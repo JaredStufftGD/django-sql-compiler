@@ -29,6 +29,8 @@ Install the package:
 pip install django-sql-compiler
 ```
 
+No database driver is installed with the package and there are no extras: it uses the database connection your Django project already has, so the driver (for example psycopg2 or mysqlclient) comes from your existing Django setup.
+
 Add `sql_compiler` to your `INSTALLED_APPS`:
 
 ```python
