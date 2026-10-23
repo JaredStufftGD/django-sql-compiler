@@ -1,6 +1,7 @@
+import importlib
 import importlib.util
 import socket
-from urllib.parse import unquote, urlsplit
+from urllib.parse import parse_qsl, unquote, urlsplit
 
 import pytest
 
@@ -12,7 +13,7 @@ SERVER_SIDE_BINDING_ENV = 'SQLCOMPILER_TEST_PG_SERVER_SIDE_BINDING'
 POSTGRES_DEFAULT_URL = 'postgres://sqlcompiler:sqlcompiler@127.0.0.1:55432/sqlcompiler'
 MYSQL_DEFAULT_URL = 'mysql://sqlcompiler:sqlcompiler@127.0.0.1:53306/sqlcompiler'
 
-# Filled once by conftest.pytest_configure; later plans read it
+# Filled once by conftest.pytest_configure; read by the DB fixtures and test markers
 STATE = {}
 
 
@@ -71,13 +72,49 @@ def parse_url(env_name, value, schemes):
         raise pytest.UsageError(
             '{} must be a {} URL with host and database name'.format(env_name, '/'.join(schemes))
         )
+    if parts.fragment:
+        raise pytest.UsageError('{} must not contain a #fragment'.format(env_name))
+    options = {}
+    if parts.query:
+        try:
+            pairs = parse_qsl(parts.query, keep_blank_values=True, strict_parsing=True)
+        except ValueError:
+            raise pytest.UsageError('{} is not a valid database URL'.format(env_name))
+        for key, option in pairs:
+            if key in options:
+                raise pytest.UsageError('{} repeats the URL option {}'.format(env_name, key))
+            # isascii() first: str.isdigit() accepts characters int() rejects
+            options[key] = int(option) if option.isascii() and option.isdigit() else option
     return {
-        'NAME': parts.path.lstrip('/'),
+        'NAME': unquote(parts.path.lstrip('/')),
         'USER': unquote(parts.username or ''),
         'PASSWORD': unquote(parts.password or ''),
         'HOST': host,
         'PORT': str(port) if port else '',
+        'OPTIONS': options,
     }
+
+
+def probe(driver, config):
+    # None when a real connection works, else a short reason without the URL or password
+    module = importlib.import_module(driver)
+    if driver == 'MySQLdb':
+        connect = dict(database=config['NAME'], charset='utf8mb4')
+    else:
+        connect = dict(dbname=config['NAME'])
+    try:
+        connection = module.connect(
+            host=config['HOST'],
+            port=int(config['PORT']),
+            user=config['USER'],
+            password=config['PASSWORD'],
+            connect_timeout=3,
+            **connect
+        )
+    except module.Error as exc:
+        return 'cannot connect at {}:{} ({})'.format(config['HOST'], config['PORT'], type(exc).__name__)
+    connection.close()
+    return None
 
 
 def build(environ):
@@ -108,11 +145,13 @@ def build(environ):
         config = parse_url(env_name, environ[env_name] if explicit else default_url, schemes)
         config['ENGINE'] = engine
         if key == 'postgres':
-            config['OPTIONS'] = {'connect_timeout': 3}
-            if binding == '1':
-                config['OPTIONS']['server_side_binding'] = True
+            merged = {'connect_timeout': 3}
         else:
-            config['OPTIONS'] = {'connect_timeout': 3, 'charset': 'utf8mb4'}
+            merged = {'connect_timeout': 3, 'charset': 'utf8mb4'}
+        merged.update(config['OPTIONS'])
+        if key == 'postgres' and binding == '1':
+            merged['server_side_binding'] = True
+        config['OPTIONS'] = merged
         unavailable = None
         if not explicit:
             if driver is None:
@@ -122,6 +161,8 @@ def build(environ):
                     socket.create_connection((config['HOST'], int(config['PORT'])), timeout=1).close()
                 except OSError:
                     unavailable = 'nothing accepting connections at {}:{}'.format(config['HOST'], config['PORT'])
+                else:
+                    unavailable = probe(driver, config)
         settings_for[key] = config
         state[key] = {
             'label': label,
