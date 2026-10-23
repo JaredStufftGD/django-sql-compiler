@@ -70,10 +70,24 @@ def test_mogrify_none_args():
     assert cursor.connection.seen == []
 
 
-def test_importing_compilers_does_not_import_db_drivers():
+def test_mogrify_empty_tuple_unescapes_percent():
+    # Django passes () when a query has no params, and its SQL can still contain %%
+    cursor = StubCursor()
+    result = MySQLCompiler().mogrify(cursor, "SELECT '100%%'", ())
+    assert result == b"SELECT '100%'"
+    assert cursor.connection.seen == []
+
+
+def test_mogrify_tuple_unescapes_percent():
+    cursor = StubCursor()
+    result = MySQLCompiler().mogrify(cursor, "SELECT %s LIKE '%%'", ('a',))
+    assert result == b"SELECT <a> LIKE '%'"
+
+
+def test_importing_package_does_not_import_db_drivers():
     # Fresh interpreter, so the result does not depend on what other tests imported
     code = (
-        'import sys; import sql_compiler.compilers; '
+        'import sys; import sql_compiler; '
         'sys.exit(1 if {"MySQLdb", "psycopg2"} & set(sys.modules) else 0)'
     )
     assert subprocess.run([sys.executable, '-c', code]).returncode == 0
