@@ -97,7 +97,10 @@ def parse_url(env_name, value, schemes):
 
 def probe(driver, config):
     # None when a real connection works, else a short reason without the URL or password
-    module = importlib.import_module(driver)
+    try:
+        module = importlib.import_module(driver)
+    except ImportError as exc:
+        return 'driver {} failed to import ({})'.format(driver, type(exc).__name__)
     if driver == 'MySQLdb':
         connect = dict(database=config['NAME'], charset='utf8mb4')
     else:
@@ -111,7 +114,7 @@ def probe(driver, config):
             connect_timeout=3,
             **connect
         )
-    except module.Error as exc:
+    except (module.Error, OSError, UnicodeError) as exc:
         return 'cannot connect at {}:{} ({})'.format(config['HOST'], config['PORT'], type(exc).__name__)
     connection.close()
     return None
