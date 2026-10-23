@@ -8,10 +8,13 @@ This file gives guidance to AI coding agents and contributors working in this re
 
 ## Commands
 
-There is no test suite, linter config, or CI. The only dependency is `django` (plus whichever DB driver the consuming project uses: psycopg2 or mysqlclient).
+There is no test suite, linter config, or CI. The only runtime dependency is Django (>=4.2, Python >=3.10). The package declares no database driver: it uses the connection the consuming project's Django already opened, so the project supplies psycopg2 or mysqlclient.
 
-- Build a distribution: `python setup.py sdist bdist_wheel` (outputs to `dist/`, `build/`, `django_sql_compiler.egg-info/`, all gitignored)
-- The version is set in `setup.py`; bump it there when releasing.
+- Set up the dev environment: `uv sync` (creates `.venv/` at the repo root with Django and the `dev` group, including pytest, from the committed `uv.lock`; use `uv sync --locked` to fail on drift). After editing dependencies in `pyproject.toml`, run `uv lock` and commit `uv.lock`.
+- Build a distribution: `uv build` (writes the sdist and wheel to `dist/`, gitignored; the build backend is flit_core and the artifacts contain only `sql_compiler/`)
+- Check the artifacts before publishing: `uvx --from "twine>=6.1" twine check --strict dist/*`
+- The version is set in `pyproject.toml` (`[project] version`); bump it there when releasing.
+- PyCharm: after `uv sync`, go to Settings > Project > Python Interpreter > Add Interpreter > Add Local Interpreter (PyCharm 2024.3+), choose type uv, and select the existing `.venv` (older versions: Virtualenv > Existing). The interpreter is `.venv\Scripts\python.exe` on Windows and `.venv/bin/python` elsewhere. `.idea/` stays gitignored. If imports show as unresolved after a dependency change, re-run `uv sync` and let PyCharm re-index.
 
 Verifying changes requires a Django project with a live connection to a supported database, because compilation goes through a real DB cursor.
 
