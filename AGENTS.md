@@ -8,9 +8,9 @@ This file gives guidance to AI coding agents and contributors working in this re
 
 ## Commands
 
-There is a pytest suite in `tests/` that by default needs no database server and no database driver; DB-backed tests in `tests/db/` run against live PostgreSQL and MySQL when configured (see below). There is no linter config or CI yet. The only runtime dependency is Django (>=4.2, Python >=3.10). The package declares no database driver: it uses the connection the consuming project's Django already opened, so the project supplies psycopg2 or mysqlclient.
+There is a pytest suite in `tests/` that by default needs no database server and no database driver; DB-backed tests in `tests/db/` run against live PostgreSQL and MySQL when configured (see below). GitHub Actions runs the suite on every push to `master` and every pull request (`.github/workflows/ci.yml`, see CI below). There is no linter config yet. The only runtime dependency is Django (>=4.2, Python >=3.10). The package declares no database driver: it uses the connection the consuming project's Django already opened, so the project supplies psycopg2 or mysqlclient.
 
-- Set up the dev environment: `uv sync` (creates `.venv/` at the repo root with Django and the `dev` group, including pytest, from the committed `uv.lock`; use `uv sync --locked` to fail on drift). After editing dependencies in `pyproject.toml`, run `uv lock` and commit `uv.lock`.
+- Set up the dev environment: `uv sync` (creates `.venv/` at the repo root with Django and the `dev` group, including pytest, from the committed `uv.lock`; use `uv sync --locked` to fail on drift). After editing dependencies or bumping `[project] version` in `pyproject.toml`, run `uv lock` and commit `uv.lock`; CI's lock check (`uv lock --check`) and every `--locked` run fail on a stale lock.
 - Run the tests: `uv run pytest` (after `uv sync`). `tests/conftest.py` builds the Django settings from `tests/dbconfig.py`: a live PostgreSQL or MySQL `default` alias when one is configured or reachable, otherwise an unsupported in-memory SQLite alias that never connects (see DB-backed tests below). Tests marked `xfail(strict=True, raises=...)` document known bugs; the DB pins name their issue (GRO-9, GRO-10, GRO-13, GRO-14). When you fix one of those bugs, remove its xfail marker, because a strict xfail that starts passing fails the suite.
 - Build a distribution: `uv build` (writes the sdist and wheel to `dist/`, gitignored; the build backend is flit_core and the artifacts contain only `sql_compiler/`)
 - Check the artifacts before publishing: `uvx --from "twine>=6.1" twine check --strict dist/*`
@@ -32,8 +32,38 @@ The unit suite covers the code that doesn't need a database. End-to-end `executa
   - Combined, for the GRO-10 pin: `uv run --exact --group pg2 --group mysql pytest` with both URLs set (the default alias is PostgreSQL, MySQL is alias `other`)
 - Why `--exact`: plain `uv run --group X` leaves a previously installed driver in place, and Django loads psycopg 3 whenever it is importable. psycopg2 and psycopg 3 conflict in `[tool.uv]`, and the conftest refuses to start if both are installed. Run `uv sync` afterwards to return to the driver-free environment.
 - Selection and skip/fail rule: one database is the `default` alias per pytest process (an explicit env var first, PostgreSQL before MySQL, else a compose default whose driver is installed and imports and which accepts a real driver connection, else SQLite; a driver that fails to import, or a port that answers but cannot complete a connection, such as a container that is still starting, is skipped with a reason). A database whose env var is set is explicitly configured: if it is unreachable or its driver is missing, its tests fail. Otherwise unavailable databases are skipped with a reason naming them, so plain `uv run pytest` stays green. The pytest header line shows which database each run uses. `tests/test_queryset.py` runs only in the no-DB run.
-- Expected outcomes: the pg2 and mysql cases pass; the GRO-9 and GRO-13 pins XFAIL on psycopg2 and MySQL; the GRO-10 pin XFAILs only in the combined run. Under psycopg 3 every Postgres case and the GRO-9 pin XFAIL as GRO-14 (TypeError, or AttributeError with server-side binding) and the GRO-10 and GRO-13 pins skip. Expected SQL lives in `tests/db/expected.py` with the versions it was captured on; re-capture it when driver or server versions change.
+- Expected outcomes: the pg2 and mysql cases pass; the GRO-9 and GRO-13 pins XFAIL on psycopg2 and MySQL; the GRO-10 pin XFAILs only in the combined run. Under psycopg 3 every Postgres case and the GRO-9 pin XFAIL as GRO-14 (TypeError, or AttributeError with server-side binding) and the GRO-10 and GRO-13 pins skip. Expected SQL lives in `tests/db/expected.py` with the versions it was captured on; re-capture it in the same PR when a driver or Django version in `uv.lock` changes. A server patch update under the same compose image tags does not require re-capturing; otherwise re-capture only when CI shows an expected-SQL mismatch.
 - Linux: mysqlclient has no Linux wheel, so `--group mysql` builds it and needs `pkg-config`, a C compiler and the MySQL client headers (Debian/Ubuntu: `default-libmysqlclient-dev`). Windows uses wheels.
+
+### CI
+
+`.github/workflows/ci.yml` runs on every push to `master` and every pull request, on Linux runners only (`ubuntu-24.04`). Drivers come only from the uv groups; databases come from `docker-compose.yml` via `docker compose up -d --wait`, so images and server settings match local runs. The MySQL jobs log and assert `character_set_server` utf8mb4 and `collation_server` utf8mb4_0900_ai_ci.
+
+- Jobs, by exact check name:
+  - `Lock file is current`: `uv lock --check`
+  - `Build and twine check`: `uv build`, then `twine check --strict`
+  - `no-DB 4.2 / 3.10`, `no-DB 4.2 / 3.12`, `no-DB 5.2 / 3.10`, `no-DB 5.2 / 3.14`, `no-DB 6.1 / 3.12`, `no-DB 6.1 / 3.14`: the no-DB suite with that Django line installed over the lock with `--with`; the job asserts the printed Django and Python versions
+  - `Django dev (main) / 3.15`: Django's `main` branch; allowed to fail. A failure, including a strict-xfail XPASS, is informational and the run still succeeds
+  - `DB pg2`, `DB pg3`, `DB pg3 server-side binding`, `DB mysql`, `DB combined pg2 + mysql`: Python 3.13 with the locked Django and drivers; the URL env vars are set, so an unreachable database fails the job
+  - `CI gate`: passes only when every other job except Django dev succeeded
+- Per-DB-job outcomes:
+  - `DB pg2`: Postgres cases pass; GRO-9 and GRO-13 pins XFAIL; MySQL cases and the GRO-10 pin skip
+  - `DB pg3`: Postgres cases and the GRO-9 pin XFAIL as GRO-14 (TypeError); GRO-10 and GRO-13 pins skip; MySQL cases skip
+  - `DB pg3 server-side binding`: as pg3, but the GRO-14 XFAILs raise AttributeError
+  - `DB mysql`: MySQL cases pass; GRO-9 and GRO-13 pins XFAIL; Postgres cases and the GRO-10 pin skip
+  - `DB combined pg2 + mysql`: Postgres cases pass; GRO-9, GRO-10 and GRO-13 pins XFAIL; MySQL cases skip because MySQL is alias `other`
+  - `tests/test_queryset.py` skips in every DB job. Each DB job fails on any other skip reason. If these outcomes change, fix the tests or this list, not the CI check.
+- Reproduce a job locally (Git Bash/Linux syntax; for the DB variants run `docker compose up -d --wait` first and `uv sync` afterwards):
+  - Lock: `uv lock --check`
+  - Packaging: `uv build` then `uvx --from "twine>=6.1" twine check --strict dist/*`
+  - no-DB, one row each: `uv run --python 3.10 --locked --with "django~=4.2.0" pytest`; `uv run --python 3.12 --locked --with "django~=4.2.0" pytest`; `uv run --python 3.10 --locked --with "django~=5.2.0" pytest`; `uv run --python 3.14 --locked --with "django~=5.2.0" pytest`; `uv run --python 3.12 --locked --with "django~=6.1.0" pytest`; `uv run --python 3.14 --locked --with "django~=6.1.0" pytest`
+  - Django dev: `uv run --python 3.15 --locked --with "django @ https://github.com/django/django/archive/refs/heads/main.tar.gz" pytest`
+  - pg2: `SQLCOMPILER_TEST_POSTGRES_URL=postgres://sqlcompiler:sqlcompiler@127.0.0.1:55432/sqlcompiler uv run --locked --exact --group pg2 pytest`
+  - pg3: `SQLCOMPILER_TEST_POSTGRES_URL=postgres://sqlcompiler:sqlcompiler@127.0.0.1:55432/sqlcompiler uv run --locked --exact --group pg3 pytest`
+  - pg3 server-side binding: `SQLCOMPILER_TEST_POSTGRES_URL=postgres://sqlcompiler:sqlcompiler@127.0.0.1:55432/sqlcompiler SQLCOMPILER_TEST_PG_SERVER_SIDE_BINDING=1 uv run --locked --exact --group pg3 pytest`
+  - mysql: `SQLCOMPILER_TEST_MYSQL_URL=mysql://sqlcompiler:sqlcompiler@127.0.0.1:53306/sqlcompiler uv run --locked --exact --group mysql pytest`
+  - combined: `SQLCOMPILER_TEST_POSTGRES_URL=postgres://sqlcompiler:sqlcompiler@127.0.0.1:55432/sqlcompiler SQLCOMPILER_TEST_MYSQL_URL=mysql://sqlcompiler:sqlcompiler@127.0.0.1:53306/sqlcompiler uv run --locked --exact --group pg2 --group mysql pytest`
+- Branch protection (repo owner): in Settings > Branches (or Rules > Rulesets) protect `master`, enable "Require status checks to pass before merging" and add only `CI gate` (GitHub Actions source), not individual matrix jobs and not Django dev; include administrators. The check must have run once (on a pull request) before it can be selected. Because only `CI gate` is required, adding or removing a Django line or Python needs no settings change; a new required job (for example a lint job) must be added to `needs` of the `ci-gate` job in `ci.yml`, and Django dev must never be added.
 
 ## Architecture
 
