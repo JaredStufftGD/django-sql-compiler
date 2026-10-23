@@ -88,7 +88,7 @@ def test_importing_package_does_not_import_db_drivers():
     # Fresh interpreter, so the result does not depend on what other tests imported
     code = (
         'import sys; import sql_compiler; '
-        'sys.exit(1 if {"MySQLdb", "psycopg2"} & set(sys.modules) else 0)'
+        'sys.exit(1 if {"MySQLdb", "psycopg", "psycopg2"} & set(sys.modules) else 0)'
     )
     assert subprocess.run([sys.executable, '-c', code]).returncode == 0
 

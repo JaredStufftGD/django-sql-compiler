@@ -3,7 +3,7 @@
 #   mysqlclient (2, 3, 0, 'final', 0), MySQL: 8.4.13
 # These strings are psycopg2/mysqlclient output. Under psycopg 3 the Postgres cases
 # xfail (GRO-14) before the comparison, so re-capture when GRO-14 is fixed.
-# 'non_ascii' holds the CORRECT form (GRO-9 garbles it today); Plan 03 pins that.
+# 'non_ascii' holds the CORRECT form (GRO-9 garbles it today); the GRO-9 pin in test_pins.py checks it.
 
 EXPECTED = {}
 
