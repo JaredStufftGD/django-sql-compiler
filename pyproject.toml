@@ -35,3 +35,8 @@ build-backend = "flit_core.buildapi"
 
 [tool.flit.module]
 name = "sql_compiler"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+xfail_strict = true
+addopts = "-ra"
