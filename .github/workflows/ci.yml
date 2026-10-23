@@ -1,0 +1,99 @@
+# Runs the test suite, lock and packaging checks on every push to master and every pull request.
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  lock:
+    name: Lock file is current
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      - run: uv lock --check
+
+  packaging:
+    name: Build and twine check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      - run: uv build
+      - run: uvx --from "twine>=6.1" twine check --strict dist/*
+
+  no-db:
+    name: no-DB ${{ matrix.django }} / ${{ matrix.python }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {django: "4.2", python: "3.10"}
+          - {django: "4.2", python: "3.12"}
+          - {django: "5.2", python: "3.10"}
+          - {django: "5.2", python: "3.14"}
+          - {django: "6.1", python: "3.12"}
+          - {django: "6.1", python: "3.14"}
+    env:
+      DJANGO_LINE: ${{ matrix.django }}
+      PYTHON_LINE: ${{ matrix.python }}
+      DJANGO_SPEC: django~=${{ matrix.django }}.0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Show installed Django and Python
+        run: |
+          uv run --locked --with "$DJANGO_SPEC" python -c "
+          import os, sys, django
+          print('Django', django.get_version(), 'on Python', sys.version)
+          assert django.get_version().startswith(os.environ['DJANGO_LINE'] + '.'), django.get_version()
+          assert '%d.%d' % sys.version_info[:2] == os.environ['PYTHON_LINE'], sys.version
+          "
+      - name: Run the no-DB suite
+        run: uv run --locked --with "$DJANGO_SPEC" pytest
+
+  # Allowed to fail: never add this job to ci-gate needs. Failures (including strict-xfail XPASS)
+  # are informational. Self-contained so it can move unchanged into its own workflow file.
+  django-dev:
+    name: Django dev (main) / 3.15
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    continue-on-error: true
+    env:
+      DJANGO_SPEC: django @ https://github.com/django/django/archive/refs/heads/main.tar.gz
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          python-version: "3.15"
+      - name: Show installed Django and Python
+        run: uv run --locked --with "$DJANGO_SPEC" python -c "import sys, django; print('Django', django.get_version(), 'on Python', sys.version)"
+      - name: Run the no-DB suite
+        run: uv run --locked --with "$DJANGO_SPEC" pytest
