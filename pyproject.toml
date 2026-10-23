@@ -28,6 +28,20 @@ Homepage = "https://github.com/JaredStufftGD/django-sql-compiler"
 dev = [
     "pytest>=8",
 ]
+pg2 = [
+    "psycopg2-binary>=2.9.9",
+]
+pg3 = [
+    "psycopg[binary]>=3.2",
+]
+mysql = [
+    "mysqlclient>=2.2.1",
+]
+
+[tool.uv]
+conflicts = [
+    [{ group = "pg2" }, { group = "pg3" }],
+]
 
 [build-system]
 requires = ["flit_core>=4,<5"]
