@@ -9,8 +9,10 @@ on:
 permissions:
   contents: read
 
+# Pull requests share one group per ref so a new push cancels the old run; every push to master gets
+# its own group, so queued master runs are never cancelled and every master commit gets a CI result.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 defaults:
