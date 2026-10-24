@@ -1,3 +1,4 @@
+import copy
 import importlib
 import importlib.util
 import socket
@@ -12,6 +13,7 @@ MYSQL_ENV = 'SQLCOMPILER_TEST_MYSQL_URL'
 SERVER_SIDE_BINDING_ENV = 'SQLCOMPILER_TEST_PG_SERVER_SIDE_BINDING'
 POSTGRES_DEFAULT_URL = 'postgres://sqlcompiler:sqlcompiler@127.0.0.1:55432/sqlcompiler'
 MYSQL_DEFAULT_URL = 'mysql://sqlcompiler:sqlcompiler@127.0.0.1:53306/sqlcompiler'
+MYSQL_LATIN1_ALIAS = 'mysql_latin1'
 
 # Filled once by conftest.pytest_configure; read by the DB fixtures and test markers
 STATE = {}
@@ -198,6 +200,11 @@ def build(environ):
 
     databases = {'default': settings_for[default]}
     state[default]['alias'] = 'default'
+    if default == 'mysql':
+        # Same server, but the client connection uses latin1 (Python codec cp1252)
+        latin1 = copy.deepcopy(settings_for['mysql'])
+        latin1['OPTIONS']['charset'] = 'latin1'
+        databases[MYSQL_LATIN1_ALIAS] = latin1
     if default == 'postgres' and usable('mysql'):
         databases['other'] = settings_for['mysql']
         state['mysql']['alias'] = 'other'
