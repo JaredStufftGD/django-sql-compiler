@@ -1,0 +1,233 @@
+# Runs the test suite, lock and packaging checks on every push to master and every pull request.
+# Every setup-uv step pins the same uv version (it drives `uv lock --check` and every `--locked` run); bump them together.
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+# Pull requests share one group per ref so a new push cancels the old run; every push to master gets
+# its own group, so queued master runs are never cancelled and every master commit gets a CI result.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  lock:
+    name: Lock file is current
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: "0.13.5"
+      - run: uv lock --check
+
+  packaging:
+    name: Build and twine check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: "0.13.5"
+      - run: uv build
+      - run: uvx --from "twine>=6.1" twine check --strict dist/*
+
+  no-db:
+    name: no-DB ${{ matrix.django }} / ${{ matrix.python }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {django: "4.2", python: "3.10"}
+          - {django: "4.2", python: "3.12"}
+          - {django: "5.2", python: "3.10"}
+          - {django: "5.2", python: "3.14"}
+          - {django: "6.1", python: "3.12"}
+          - {django: "6.1", python: "3.14"}
+    env:
+      DJANGO_LINE: ${{ matrix.django }}
+      PYTHON_LINE: ${{ matrix.python }}
+      DJANGO_SPEC: django~=${{ matrix.django }}.0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: "0.13.5"
+          python-version: ${{ matrix.python }}
+      - name: Show installed Django and Python
+        run: |
+          uv run --locked --with "$DJANGO_SPEC" python -c "
+          import os, sys, django
+          print('Django', django.get_version(), 'on Python', sys.version)
+          assert django.get_version().startswith(os.environ['DJANGO_LINE'] + '.'), django.get_version()
+          assert '%d.%d' % sys.version_info[:2] == os.environ['PYTHON_LINE'], sys.version
+          "
+      - name: Run the no-DB suite
+        run: uv run --locked --with "$DJANGO_SPEC" pytest
+
+  # Allowed to fail: never add this job to ci-gate needs. Failures (including strict-xfail XPASS)
+  # are informational. Self-contained so it can move unchanged into its own workflow file.
+  django-dev:
+    name: Django dev (main) / 3.15
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    continue-on-error: true
+    env:
+      DJANGO_SPEC: django @ https://github.com/django/django/archive/refs/heads/main.tar.gz
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: "0.13.5"
+          python-version: "3.15"
+      - name: Show installed Django and Python
+        run: uv run --locked --with "$DJANGO_SPEC" python -c "import sys, django; print('Django', django.get_version(), 'on Python', sys.version)"
+      - name: Run the no-DB suite
+        run: uv run --locked --with "$DJANGO_SPEC" pytest
+
+  db:
+    name: DB ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: pg2
+            services: postgres
+            groups: --group pg2
+            pg_url: postgres://sqlcompiler:sqlcompiler@127.0.0.1:55432/sqlcompiler
+            my_url: ""
+            binding: ""
+            mysql: false
+            allowed: "no-DB test: needs the unsupported SQLite default alias|MySQL unavailable: no driver installed|GRO-10 pin needs default=PostgreSQL"
+            expect_ssb: ""
+          - name: pg3
+            services: postgres
+            groups: --group pg3
+            pg_url: postgres://sqlcompiler:sqlcompiler@127.0.0.1:55432/sqlcompiler
+            my_url: ""
+            binding: ""
+            mysql: false
+            allowed: "no-DB test: needs the unsupported SQLite default alias|MySQL unavailable: no driver installed|GRO-10 pin needs default=PostgreSQL|GRO-13 pin is skipped under psycopg 3"
+            expect_ssb: ""
+          - name: pg3 server-side binding
+            services: postgres
+            groups: --group pg3
+            pg_url: postgres://sqlcompiler:sqlcompiler@127.0.0.1:55432/sqlcompiler
+            my_url: ""
+            binding: "1"
+            mysql: false
+            allowed: "no-DB test: needs the unsupported SQLite default alias|MySQL unavailable: no driver installed|GRO-10 pin needs default=PostgreSQL|GRO-13 pin is skipped under psycopg 3"
+            expect_ssb: "1"
+          - name: mysql
+            services: mysql
+            groups: --group mysql
+            pg_url: ""
+            my_url: mysql://sqlcompiler:sqlcompiler@127.0.0.1:53306/sqlcompiler
+            binding: ""
+            mysql: true
+            allowed: "no-DB test: needs the unsupported SQLite default alias|PostgreSQL unavailable: no driver installed|GRO-10 pin needs default=PostgreSQL"
+            expect_ssb: ""
+          - name: combined pg2 + mysql
+            services: postgres mysql
+            groups: --group pg2 --group mysql
+            pg_url: postgres://sqlcompiler:sqlcompiler@127.0.0.1:55432/sqlcompiler
+            my_url: mysql://sqlcompiler:sqlcompiler@127.0.0.1:53306/sqlcompiler
+            binding: ""
+            mysql: true
+            allowed: "no-DB test: needs the unsupported SQLite default alias|MySQL not under test: it is the 'other' alias"
+            expect_ssb: ""
+    env:
+      SQLCOMPILER_TEST_POSTGRES_URL: ${{ matrix.pg_url }}
+      SQLCOMPILER_TEST_MYSQL_URL: ${{ matrix.my_url }}
+      SQLCOMPILER_TEST_PG_SERVER_SIDE_BINDING: ${{ matrix.binding }}
+      COMPOSE_SERVICES: ${{ matrix.services }}
+      UV_GROUPS: ${{ matrix.groups }}
+      ALLOWED_SKIPS: ${{ matrix.allowed }}
+      EXPECT_SSB: ${{ matrix.expect_ssb }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: "0.13.5"
+          python-version: "3.13"
+      - name: Install MySQL client headers (mysqlclient builds from source on Linux)
+        if: matrix.mysql
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends pkg-config default-libmysqlclient-dev
+      - name: Start databases from docker-compose.yml
+        run: |
+          docker compose config --images
+          docker compose up -d --wait --wait-timeout 180 $COMPOSE_SERVICES
+      - name: Show MySQL server charset and collation
+        if: matrix.mysql
+        run: |
+          docker compose exec -T -e MYSQL_PWD=sqlcompiler mysql mysql -uroot -N -e "SHOW VARIABLES WHERE Variable_name IN ('character_set_server','collation_server')" | tee mysql-vars.txt
+          grep -qE 'character_set_server[[:space:]]+utf8mb4$' mysql-vars.txt
+          grep -qE 'collation_server[[:space:]]+utf8mb4_0900_ai_ci$' mysql-vars.txt
+      - name: Run DB-backed tests
+        run: uv run --locked --exact $UV_GROUPS pytest 2>&1 | tee pytest.log
+      - name: Check skips match the documented outcomes
+        run: |
+          bad=$(grep -E '^SKIPPED' pytest.log | grep -vE "^SKIPPED \[[0-9]+\] [^ ]+: (${ALLOWED_SKIPS})" || true)
+          if [ -n "$bad" ]; then
+            echo "Unexpected skips. If the tests changed intentionally, update both the matrix 'allowed' list in ci.yml and the per-DB-job outcomes in AGENTS.md; otherwise fix the tests:"
+            echo "$bad"
+            exit 1
+          fi
+          if ! grep -E '^SKIPPED' pytest.log | grep -q 'no-DB test: needs the unsupported SQLite default alias'; then
+            echo "tests/test_queryset.py was not skipped as the no-DB test"
+            exit 1
+          fi
+          # The pytest header reports server_side_binding=True on the PostgreSQL alias when the tests configured it.
+          ssb_header='^sql_compiler test databases: .*server_side_binding=True'
+          if [ "$EXPECT_SSB" = "1" ]; then
+            grep -qE "$ssb_header" pytest.log || { echo "server_side_binding=True not found in the pytest header"; exit 1; }
+          elif grep -qE "$ssb_header" pytest.log; then
+            echo "server_side_binding=True found in the pytest header but this job does not use server-side binding"
+            exit 1
+          fi
+      - name: Show database logs
+        if: always()
+        run: docker compose logs --no-color || true
+
+  ci-gate:
+    name: CI gate
+    if: ${{ always() }}
+    # Every required job goes here (e.g. a future lint job); never django-dev. Branch protection requires only this check.
+    needs: [lock, packaging, no-db, db]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every needed job to have succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$NEEDS" | jq -e 'all(.[]; .result == "success")' > /dev/null

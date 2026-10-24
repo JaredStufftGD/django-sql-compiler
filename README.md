@@ -1,5 +1,7 @@
 # Django SQL Compiler
 
+[![CI](https://github.com/JaredStufftGD/django-sql-compiler/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/JaredStufftGD/django-sql-compiler/actions/workflows/ci.yml)
+
 A light-weight module to generate usable SQL from a Django QuerySet.
 
 ## Backend Support
