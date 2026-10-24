@@ -188,7 +188,7 @@ jobs:
       - name: Show MySQL server charset and collation
         if: matrix.mysql
         run: |
-          docker compose exec -T mysql mysql -uroot -psqlcompiler -N -e "SHOW VARIABLES WHERE Variable_name IN ('character_set_server','collation_server')" 2>/dev/null | tee mysql-vars.txt
+          docker compose exec -T -e MYSQL_PWD=sqlcompiler mysql mysql -uroot -N -e "SHOW VARIABLES WHERE Variable_name IN ('character_set_server','collation_server')" | tee mysql-vars.txt
           grep -qE 'character_set_server[[:space:]]+utf8mb4$' mysql-vars.txt
           grep -qE 'collation_server[[:space:]]+utf8mb4_0900_ai_ci$' mysql-vars.txt
       - name: Run DB-backed tests
