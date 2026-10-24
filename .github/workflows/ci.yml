@@ -205,10 +205,12 @@ jobs:
             echo "tests/test_queryset.py was not skipped as the no-DB test"
             exit 1
           fi
+          # The pytest header reports server_side_binding=True on the PostgreSQL alias when the tests configured it.
+          ssb_header='^sql_compiler test databases: .*server_side_binding=True'
           if [ "$EXPECT_SSB" = "1" ]; then
-            grep -q 'server_side_binding=True' pytest.log || { echo "server_side_binding=True not found in the log"; exit 1; }
-          elif grep -q 'server_side_binding=True' pytest.log; then
-            echo "server_side_binding=True found but this job does not use server-side binding"
+            grep -qE "$ssb_header" pytest.log || { echo "server_side_binding=True not found in the pytest header"; exit 1; }
+          elif grep -qE "$ssb_header" pytest.log; then
+            echo "server_side_binding=True found in the pytest header but this job does not use server-side binding"
             exit 1
           fi
       - name: Show database logs

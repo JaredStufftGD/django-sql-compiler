@@ -33,6 +33,8 @@ def pytest_report_header(config):
             if info['alias'] != alias:
                 continue
             source = 'from {}'.format(info['env']) if info['explicit'] else 'compose default'
+            if key == 'postgres' and state['server_side_binding']:
+                source += ', server_side_binding=True'
             parts.append('{}={} ({}, {}, {})'.format(alias, info['label'], info['driver'], info['where'], source))
     if state['default'] == 'sqlite':
         parts.append('default=SQLite (no-DB run)')
