@@ -52,7 +52,7 @@ The unit suite covers the code that doesn't need a database. End-to-end `executa
   - `DB pg3 server-side binding`: as pg3, but the GRO-14 XFAILs raise AttributeError
   - `DB mysql`: MySQL cases pass; GRO-9 and GRO-13 pins XFAIL; Postgres cases and the GRO-10 pin skip
   - `DB combined pg2 + mysql`: Postgres cases pass; GRO-9, GRO-10 and GRO-13 pins XFAIL; MySQL cases skip because MySQL is alias `other`
-  - `tests/test_queryset.py` skips in every DB job. Each DB job fails on any other skip reason. If these outcomes change, fix the tests or this list, not the CI check.
+  - `tests/test_queryset.py` skips in every DB job. Each DB job fails on any other skip reason. When a test change intentionally changes these outcomes (for example, fixing a pinned bug removes a skip), update this list and the `allowed` skip reasons of the matching `db` matrix rows in `ci.yml` together, in the same PR. If CI shows different outcomes without such a change, fix the tests, not the CI check.
 - Reproduce a job locally (Git Bash/Linux syntax; for the DB variants run `docker compose up -d --wait` first and `uv sync` afterwards):
   - Lock: `uv lock --check`
   - Packaging: `uv build` then `uvx --from "twine>=6.1" twine check --strict dist/*`

@@ -197,7 +197,7 @@ jobs:
         run: |
           bad=$(grep -E '^SKIPPED' pytest.log | grep -vE "^SKIPPED \[[0-9]+\] [^ ]+: (${ALLOWED_SKIPS})" || true)
           if [ -n "$bad" ]; then
-            echo "Unexpected skips (update the tests or AGENTS.md outcomes, not this list, unless the spec list changes):"
+            echo "Unexpected skips. If the tests changed intentionally, update both the matrix 'allowed' list in ci.yml and the per-DB-job outcomes in AGENTS.md; otherwise fix the tests:"
             echo "$bad"
             exit 1
           fi
