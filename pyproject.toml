@@ -26,7 +26,7 @@ Homepage = "https://github.com/JaredStufftGD/django-sql-compiler"
 
 [dependency-groups]
 dev = [
-    "pytest>=8",
+    "pytest>=8.1",
 ]
 pg2 = [
     "psycopg2-binary>=2.9.9",
