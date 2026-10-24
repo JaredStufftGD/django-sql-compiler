@@ -56,7 +56,7 @@ def gro14_xfail():
     return pytest.mark.xfail(
         strict=True,
         raises=TypeError,
-        reason="GRO-14: psycopg 3's client-side mogrify returns str, and bytes_to_string calls chr() on each character",
+        reason="GRO-14: psycopg 3's client-side mogrify returns str, but compile_sql must return bytes, so executable_query raises TypeError",
     )
 
 

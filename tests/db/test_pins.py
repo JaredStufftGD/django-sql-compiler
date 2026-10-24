@@ -8,10 +8,16 @@ from .cases import ROWS
 from .expected import EXPECTED
 from .models import Thing
 
-GRO9_XFAIL = dbconfig.gro14_xfail() or pytest.mark.xfail(strict=True, raises=AssertionError, reason='GRO-9: bytes_to_string decodes each UTF-8 byte as its own character, so café comes out garbled')
+_gro14 = dbconfig.gro14_xfail()
 
 
-@GRO9_XFAIL
+def gro14_only(func):
+    if _gro14 is None:
+        return func
+    return _gro14(func)
+
+
+@gro14_only
 def test_non_ascii_param_is_not_garbled(db_under_test, things):
     qs = Thing.objects.filter(name='café')
     assert qs.executable_query == EXPECTED[db_under_test]['non_ascii']
