@@ -56,8 +56,8 @@ The unit suite covers the code that doesn't need a database. End-to-end `executa
 - Reproduce a job locally (Git Bash/Linux syntax; for the DB variants run `docker compose up -d --wait` first and `uv sync` afterwards):
   - Lock: `uv lock --check`
   - Packaging: `uv build` then `uvx --from "twine>=6.1" twine check --strict dist/*`
-  - no-DB, one row each: `uv run --python 3.10 --locked --with "django~=4.2.0" pytest`; `uv run --python 3.12 --locked --with "django~=4.2.0" pytest`; `uv run --python 3.10 --locked --with "django~=5.2.0" pytest`; `uv run --python 3.14 --locked --with "django~=5.2.0" pytest`; `uv run --python 3.12 --locked --with "django~=6.1.0" pytest`; `uv run --python 3.14 --locked --with "django~=6.1.0" pytest`
-  - Django dev: `uv run --python 3.15 --locked --with "django @ https://github.com/django/django/archive/refs/heads/main.tar.gz" pytest`
+  - no-DB, one row each (`--isolated` runs in a throwaway environment, so the shared `.venv` and its Python stay as they are, and each row starts fresh as in CI): `uv run --isolated --python 3.10 --locked --with "django~=4.2.0" pytest`; `uv run --isolated --python 3.12 --locked --with "django~=4.2.0" pytest`; `uv run --isolated --python 3.10 --locked --with "django~=5.2.0" pytest`; `uv run --isolated --python 3.14 --locked --with "django~=5.2.0" pytest`; `uv run --isolated --python 3.12 --locked --with "django~=6.1.0" pytest`; `uv run --isolated --python 3.14 --locked --with "django~=6.1.0" pytest`
+  - Django dev: `uv run --isolated --python 3.15 --locked --with "django @ https://github.com/django/django/archive/refs/heads/main.tar.gz" pytest`
   - pg2: `SQLCOMPILER_TEST_POSTGRES_URL=postgres://sqlcompiler:sqlcompiler@127.0.0.1:55432/sqlcompiler uv run --locked --exact --group pg2 pytest`
   - pg3: `SQLCOMPILER_TEST_POSTGRES_URL=postgres://sqlcompiler:sqlcompiler@127.0.0.1:55432/sqlcompiler uv run --locked --exact --group pg3 pytest`
   - pg3 server-side binding: `SQLCOMPILER_TEST_POSTGRES_URL=postgres://sqlcompiler:sqlcompiler@127.0.0.1:55432/sqlcompiler SQLCOMPILER_TEST_PG_SERVER_SIDE_BINDING=1 uv run --locked --exact --group pg3 pytest`
