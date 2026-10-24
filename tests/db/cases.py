@@ -24,6 +24,12 @@ ROWS = [
      'ts': None, 'dec': None},
     {'name': 'plain', 'other': 'zzz', 'n': 4, 'flag': False, 'day': date(2024, 1, 5),
      'ts': datetime.datetime(2024, 1, 5, 3, 4, 5, tzinfo=UTC), 'dec': Decimal('4.00')},
+    {'name': '東京', 'other': 'tokyo', 'n': 5, 'flag': False, 'day': None,
+     'ts': None, 'dec': None},
+    {'name': '😀', 'other': 'emoji', 'n': 6, 'flag': False, 'day': None,
+     'ts': None, 'dec': None},
+    {'name': '€', 'other': 'euro', 'n': 7, 'flag': False, 'day': None,
+     'ts': None, 'dec': None},
 ]
 
 CASES = [
@@ -42,6 +48,8 @@ CASES = [
     ('in_list', lambda: Thing.objects.filter(n__in=[1, 3])),
     ('date', lambda: Thing.objects.filter(day=date(2024, 1, 2))),
     ('datetime', lambda: Thing.objects.filter(ts=ROW_1_TS)),
+    ('non_ascii_cjk', lambda: Thing.objects.filter(name='東京')),
+    ('non_ascii_emoji', lambda: Thing.objects.filter(name='😀')),
 ]
 
 CASE_IDS = [case_id for case_id, _ in CASES]

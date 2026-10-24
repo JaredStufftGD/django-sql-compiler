@@ -1,10 +1,13 @@
 import subprocess
 import sys
+from types import SimpleNamespace
 
 import pytest
 from django.db.utils import ProgrammingError
 
-from sql_compiler.compilers import compilers, compiler_map, SUPPORTED_BACKENDS, MySQLCompiler
+from sql_compiler import utils
+from sql_compiler.compilers import compilers, compiler_map, SUPPORTED_BACKENDS, MySQLCompiler, PostgresCompiler, PostgresTenantsCompiler, Psycopg2Compiler
+from sql_compiler.compilers.base import BaseSQLCompiler
 
 EXPECTED_BACKENDS = {
     'django.db.backends.mysql',
@@ -82,6 +85,84 @@ def test_mogrify_tuple_unescapes_percent():
     cursor = StubCursor()
     result = MySQLCompiler().mogrify(cursor, "SELECT %s LIKE '%%'", ('a',))
     assert result == b"SELECT <a> LIKE '%'"
+
+
+PG_ENCODINGS = {'WIN1252': 'cp1252', 'LATIN1': 'latin1', 'UTF8': 'utf_8'}
+
+
+def raw_connection(encoding):
+    return SimpleNamespace(connection=SimpleNamespace(encoding=encoding))
+
+
+def test_postgres_python_encoding_win1252_decodes_euro(monkeypatch):
+    monkeypatch.setattr(PostgresCompiler, 'encoding_map', lambda self: PG_ENCODINGS)
+    encoding = PostgresCompiler().python_encoding(raw_connection('WIN1252'))
+    assert utils.bytes_to_string(b"SELECT 'caf\xe9 \x80'", encoding) == "SELECT 'café €'"
+
+
+def test_postgres_python_encoding_latin1_decodes_cafe(monkeypatch):
+    monkeypatch.setattr(PostgresCompiler, 'encoding_map', lambda self: PG_ENCODINGS)
+    encoding = PostgresCompiler().python_encoding(raw_connection('LATIN1'))
+    assert utils.bytes_to_string(b"SELECT 'caf\xe9'", encoding) == "SELECT 'café'"
+
+
+def test_postgres_python_encoding_unknown_name_raises_lookup_error(monkeypatch):
+    monkeypatch.setattr(PostgresCompiler, 'encoding_map', lambda self: PG_ENCODINGS)
+    with pytest.raises(LookupError):
+        PostgresCompiler().python_encoding(raw_connection('NOT_A_PG_ENCODING'))
+
+
+def psycopg3_raw_connection(encoding):
+    # psycopg 3 has no connection.encoding; info.encoding is already a Python codec name
+    return SimpleNamespace(connection=SimpleNamespace(info=SimpleNamespace(encoding=encoding)))
+
+
+def no_psycopg2_map(self):
+    raise AssertionError('psycopg 3 connections must not use the psycopg2 encoding map')
+
+
+def test_postgres_python_encoding_psycopg3_utf8(monkeypatch):
+    monkeypatch.setattr(PostgresCompiler, 'encoding_map', no_psycopg2_map)
+    assert PostgresCompiler().python_encoding(psycopg3_raw_connection('utf-8')) == 'utf-8'
+
+
+def test_postgres_python_encoding_psycopg3_cp1252_decodes_euro(monkeypatch):
+    monkeypatch.setattr(PostgresCompiler, 'encoding_map', no_psycopg2_map)
+    encoding = PostgresCompiler().python_encoding(psycopg3_raw_connection('cp1252'))
+    assert utils.bytes_to_string(b"SELECT 'caf\xe9 \x80'", encoding) == "SELECT 'café €'"
+
+
+def test_postgres_python_encoding_psycopg3_unknown_name_raises_lookup_error(monkeypatch):
+    monkeypatch.setattr(PostgresCompiler, 'encoding_map', no_psycopg2_map)
+    with pytest.raises(LookupError):
+        PostgresCompiler().python_encoding(psycopg3_raw_connection('not-a-codec'))
+
+
+def test_postgres_python_encoding_unknown_name_has_no_chained_key_error(monkeypatch):
+    monkeypatch.setattr(PostgresCompiler, 'encoding_map', lambda self: PG_ENCODINGS)
+    with pytest.raises(LookupError) as excinfo:
+        PostgresCompiler().python_encoding(raw_connection('NOT_A_PG_ENCODING'))
+    assert excinfo.value.__suppress_context__
+
+
+def test_postgres_subclasses_share_python_encoding():
+    assert PostgresTenantsCompiler.python_encoding is PostgresCompiler.python_encoding
+    assert Psycopg2Compiler.python_encoding is PostgresCompiler.python_encoding
+
+
+def test_mysql_python_encoding_reports_driver_codec():
+    assert MySQLCompiler().python_encoding(raw_connection('cp1252')) == 'cp1252'
+    assert MySQLCompiler().python_encoding(raw_connection('utf8')) == 'utf-8'
+
+
+def test_mysql_python_encoding_unknown_charset_raises_lookup_error():
+    with pytest.raises(LookupError):
+        MySQLCompiler().python_encoding(raw_connection('binary'))
+
+
+def test_base_python_encoding_not_implemented():
+    with pytest.raises(NotImplementedError):
+        BaseSQLCompiler().python_encoding(object())
 
 
 def test_importing_package_does_not_import_db_drivers():

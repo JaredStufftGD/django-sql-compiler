@@ -3,7 +3,8 @@
 #   mysqlclient (2, 3, 0, 'final', 0), MySQL: 8.4.13
 # These strings are psycopg2/mysqlclient output. Under psycopg 3 the Postgres cases
 # xfail (GRO-14) before the comparison, so re-capture when GRO-14 is fixed.
-# 'non_ascii' holds the CORRECT form (GRO-9 garbles it today); the GRO-9 pin in test_pins.py checks it.
+# 'non_ascii', 'non_ascii_cjk', 'non_ascii_emoji' (and MySQL 'non_ascii_euro') hold non-ASCII values, checked by
+# test_non_ascii_param_is_not_garbled, the non-ASCII CASES and the MySQL latin1 test.
 
 EXPECTED = {}
 
@@ -25,6 +26,8 @@ EXPECTED['postgres'] = {
     'date': POSTGRES_SELECT + 'WHERE "sqlcompiler_thing"."day" = \'2024-01-02\'::date',
     'datetime': POSTGRES_SELECT + 'WHERE "sqlcompiler_thing"."ts" = \'2024-01-02T03:04:05+00:00\'::timestamptz',
     'non_ascii': POSTGRES_SELECT + 'WHERE "sqlcompiler_thing"."name" = \'café\'',
+    'non_ascii_cjk': POSTGRES_SELECT + 'WHERE "sqlcompiler_thing"."name" = \'東京\'',
+    'non_ascii_emoji': POSTGRES_SELECT + 'WHERE "sqlcompiler_thing"."name" = \'😀\'',
 }
 
 MYSQL_SELECT = 'SELECT `sqlcompiler_thing`.`id`, `sqlcompiler_thing`.`name`, `sqlcompiler_thing`.`other`, `sqlcompiler_thing`.`n`, `sqlcompiler_thing`.`flag`, `sqlcompiler_thing`.`day`, `sqlcompiler_thing`.`ts`, `sqlcompiler_thing`.`dec` FROM `sqlcompiler_thing` '
@@ -45,4 +48,7 @@ EXPECTED['mysql'] = {
     'date': MYSQL_SELECT + "WHERE `sqlcompiler_thing`.`day` = '2024-01-02'",
     'datetime': MYSQL_SELECT + "WHERE `sqlcompiler_thing`.`ts` = '2024-01-02 03:04:05'",
     'non_ascii': MYSQL_SELECT + "WHERE `sqlcompiler_thing`.`name` = 'café'",
+    'non_ascii_cjk': MYSQL_SELECT + "WHERE `sqlcompiler_thing`.`name` = '東京'",
+    'non_ascii_emoji': MYSQL_SELECT + "WHERE `sqlcompiler_thing`.`name` = '😀'",
+    'non_ascii_euro': MYSQL_SELECT + "WHERE `sqlcompiler_thing`.`name` = '€'",
 }

@@ -1,3 +1,5 @@
+import codecs
+
 from .base import BaseSQLCompiler
 
 
@@ -9,6 +11,9 @@ class MySQLCompiler(BaseSQLCompiler):
         with connection.cursor() as cursor:
             compiled_sql = self.mogrify(cursor, query, params)
         return compiled_sql
+
+    def python_encoding(self, connection):
+        return codecs.lookup(connection.connection.encoding).name
 
     def mogrify(self, cursor, query, args=None):
         db = cursor.connection

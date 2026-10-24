@@ -15,10 +15,12 @@ def validate_connection(connection):
         return connection
 
 
-def bytes_to_string(bytes_obj):
+def bytes_to_string(bytes_obj, encoding):
 
     """
-    Converts a bytes object to a string.
+    Decodes a bytes object to a string with the Python codec the connection's driver reports.
+
+    Decoding is strict: LookupError (unknown codec) and UnicodeDecodeError (invalid bytes) propagate.
     """
 
-    return "".join([chr(c) for c in bytes_obj])
+    return bytes_obj.decode(encoding)
