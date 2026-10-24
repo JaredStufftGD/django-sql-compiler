@@ -37,7 +37,7 @@ The unit suite covers the code that doesn't need a database. End-to-end `executa
 
 ### CI
 
-`.github/workflows/ci.yml` runs on every push to `master` and every pull request, on Linux runners only (`ubuntu-24.04`). Drivers come only from the uv groups; databases come from `docker-compose.yml` via `docker compose up -d --wait`, so images and server settings match local runs. The MySQL jobs log and assert `character_set_server` utf8mb4 and `collation_server` utf8mb4_0900_ai_ci.
+`.github/workflows/ci.yml` runs on every push to `master` and every pull request, on Linux runners only (`ubuntu-24.04`). Drivers come only from the uv groups; databases come from `docker-compose.yml` via `docker compose up -d --wait`, so images and server settings match local runs. The MySQL jobs log and assert `character_set_server` utf8mb4 and `collation_server` utf8mb4_0900_ai_ci. Every `astral-sh/setup-uv` step pins the same uv version with `version:`, because that uv runs `uv lock --check` and every `--locked` run; bump all of them together, deliberately.
 
 - Jobs, by exact check name:
   - `Lock file is current`: `uv lock --check`
