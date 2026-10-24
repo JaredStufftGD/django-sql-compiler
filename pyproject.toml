@@ -2,7 +2,6 @@
 name = "django-sql-compiler"
 version = "0.2.3"
 description = "A light-weight module to generate usable SQL from a Django QuerySet."
-readme = "README.md"
 authors = [
     { name = "Grok Data / Jared Stufft", email = "jared@grokdata.tech" },
 ]
