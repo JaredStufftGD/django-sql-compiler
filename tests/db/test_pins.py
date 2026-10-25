@@ -1,6 +1,7 @@
 import pytest
 from django.core.exceptions import EmptyResultSet
-from django.db import connection
+from django.db import connection, connections
+from django.test import override_settings
 
 from tests import dbconfig
 
@@ -29,14 +30,40 @@ def test_non_ascii_param_is_not_garbled(db_under_test, things):
     assert 0 < len(got) < len(ROWS)
 
 
-@pytest.mark.skipif(not dbconfig.gro10_ready(), reason='GRO-10 pin needs default=PostgreSQL via psycopg2 and MySQL as alias other; run uv run --exact --group pg2 --group mysql pytest')
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason='GRO-10: sql_with_params() compiles for the default alias, so a queryset on the MySQL alias gets PostgreSQL SQL')
-def test_non_default_alias_compiles_for_its_own_backend():
-    assert Thing.objects.using('other').filter(name="it's").executable_query == EXPECTED['mysql']['single_quote']
+gro10 = pytest.mark.skipif(not dbconfig.gro10_ready(), reason='GRO-10 pin needs default=PostgreSQL via psycopg2 and MySQL as alias other; run uv run --exact --group pg2 --group mysql pytest')
+
+
+class ThingReadsToOther:
+    def db_for_read(self, model, **hints):
+        return 'other' if model is Thing else None
+
+
+def assert_runs_on_other(qs, compiled):
+    with connections['other'].cursor() as cursor:
+        cursor.execute(compiled)
+        got = {row[0] for row in cursor.fetchall()}
+    assert got == set(qs.values_list('pk', flat=True))
+    assert 0 < len(got) < len(ROWS)
+
+
+@gro10
+def test_non_default_alias_compiles_for_its_own_backend(things_other):
+    qs = Thing.objects.using('other').filter(name="it's")
+    assert qs.executable_query == EXPECTED['mysql']['single_quote']
+    assert_runs_on_other(qs, qs.executable_query)
+
+
+@gro10
+def test_router_selected_alias_compiles_for_its_own_backend(things_other):
+    with override_settings(DATABASE_ROUTERS=[ThingReadsToOther()]):
+        qs = Thing.objects.filter(name="it's")
+        assert qs.db == 'other'
+        assert qs.executable_query == EXPECTED['mysql']['single_quote']
+        assert_runs_on_other(qs, qs.executable_query)
 
 
 @pytest.mark.skipif(dbconfig.psycopg3_is_default(), reason='GRO-13 pin is skipped under psycopg 3: EmptyResultSet is raised before mogrify, so it cannot strict-xfail naming GRO-14')
-@pytest.mark.xfail(strict=True, raises=EmptyResultSet, reason='GRO-13: sql_with_params() raises EmptyResultSet for .none() querysets before any SQL is compiled')
+@pytest.mark.xfail(strict=True, raises=EmptyResultSet, reason='GRO-13: as_sql() raises EmptyResultSet for .none() querysets before any SQL is compiled')
 def test_none_queryset_compiles(db_under_test, things):
     compiled = Thing.objects.none().executable_query
     with connection.cursor() as cursor:

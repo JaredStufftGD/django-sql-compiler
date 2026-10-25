@@ -79,3 +79,20 @@ def things(db_under_test):
     yield
     with connection.schema_editor() as editor:
         editor.delete_model(Thing)
+
+
+@pytest.fixture(scope='session')
+def things_other(things):
+    # Imported here: this conftest loads before pytest_configure sets up Django
+    from .cases import ROWS
+    from .models import Thing
+
+    other = connections['other']
+    with other.schema_editor() as editor:
+        if Thing._meta.db_table in other.introspection.table_names():
+            editor.delete_model(Thing)
+        editor.create_model(Thing)
+    Thing.objects.using('other').bulk_create([Thing(**row) for row in ROWS])
+    yield
+    with other.schema_editor() as editor:
+        editor.delete_model(Thing)
