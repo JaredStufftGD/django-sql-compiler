@@ -67,7 +67,7 @@ wheels = [
 
 [[package]]
 name = "django-sql-compiler"
-version = "0.2.3"
+version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "django", version = "5.2.18", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12' or (extra == 'group-19-django-sql-compiler-pg2' and extra == 'group-19-django-sql-compiler-pg3')" },
