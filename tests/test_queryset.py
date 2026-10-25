@@ -2,7 +2,9 @@ from types import SimpleNamespace
 
 import django.db.models.sql.query
 import pytest
+from django.conf import settings
 from django.db import connections, models
+from django.db.utils import ConnectionHandler
 from django.test import override_settings
 
 import sql_compiler.compilers
@@ -27,12 +29,11 @@ def test_unsupported_backend_raises_without_connecting():
     assert connections['default'].connection is None
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason='queryset.py formats the message with the None returned by validate_connection, so it always reads "None backend is not supported."')
 def test_unsupported_backend_message_names_engine():
     engine = connections['default'].settings_dict['ENGINE']
     with pytest.raises(NotImplementedError) as excinfo:
         Widget.objects.all().executable_query
-    assert engine in str(excinfo.value)
+    assert str(excinfo.value) == '{} backend is not supported.'.format(engine)
 
 
 def stub_executable_query(monkeypatch, compiled, encoding='utf8', has_connection=True):
@@ -96,3 +97,39 @@ def test_executable_query_compiles_for_the_router_alias(monkeypatch):
     with override_settings(DATABASE_ROUTERS=[ReadRouter()]):
         Widget.objects.all().executable_query
     assert seen == ['other']
+
+
+UNSUPPORTED_OTHER_ENGINE = 'django.db.backends.dummy'
+
+
+@pytest.fixture
+def unsupported_other(monkeypatch):
+    handler = ConnectionHandler({
+        'default': settings.DATABASES['default'],
+        'other': {'ENGINE': UNSUPPORTED_OTHER_ENGINE},
+    })
+    monkeypatch.setattr(sql_compiler.queryset, 'connections', handler)
+    yield handler
+    handler.close_all()
+
+
+def assert_names_other_engine(handler, excinfo):
+    engine = handler['other'].settings_dict['ENGINE']
+    default_engine = handler['default'].settings_dict['ENGINE']
+    assert str(excinfo.value) == '{} backend is not supported.'.format(engine)
+    assert default_engine not in str(excinfo.value)
+    assert handler['other'].connection is None
+    assert handler['default'].connection is None
+
+
+def test_unsupported_backend_message_names_the_using_alias_engine(unsupported_other):
+    with pytest.raises(NotImplementedError) as excinfo:
+        Widget.objects.using('other').executable_query
+    assert_names_other_engine(unsupported_other, excinfo)
+
+
+def test_unsupported_backend_message_names_the_router_alias_engine(unsupported_other):
+    with override_settings(DATABASE_ROUTERS=[ReadRouter()]):
+        with pytest.raises(NotImplementedError) as excinfo:
+            Widget.objects.all().executable_query
+    assert_names_other_engine(unsupported_other, excinfo)
