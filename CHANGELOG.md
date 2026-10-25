@@ -2,6 +2,12 @@
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- `executable_query` no longer raises `EmptyResultSet` for querysets Django evaluates as empty (`.none()`, `filter(id__in=[])`, an empty HAVING clause, a union of empty parts, a subquery on an empty queryset). It returns SQL that has the same columns as the non-empty queryset and matches no rows, so it can be embedded in a CTE, a UNION or an `IN (...)` subquery. SQL for querysets that already compiled is unchanged.
+
 ## [0.2.0] - 2026-10-25
 
 The first release since 0.1.1 (June 2021). It ships correctness fixes and first-time MySQL support.
