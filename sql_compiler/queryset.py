@@ -25,7 +25,7 @@ class SQLCompilerQuerySet(QuerySet):
         connection = utils.validate_connection(connections[alias])
 
         if not connection:
-            raise NotImplementedError('{} backend is not supported.'.format(str(connection)))
+            raise NotImplementedError('{} backend is not supported.'.format(connections[alias].settings_dict['ENGINE']))
 
         query, params = self.query.get_compiler(using=alias).as_sql()
 
