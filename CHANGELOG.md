@@ -30,7 +30,7 @@ The first release since 0.1.1 (June 2021). It ships correctness fixes and first-
 
 ### Packaging
 
-- The first wheel release (0.1.1 was sdist-only).
+- Ships a wheel again (0.1.1 was sdist-only; 0.0.5a0 and 0.1.0 had wheels).
 - Built with flit_core instead of setuptools.
 - The license is declared with PEP 639 `License-Expression: MIT`, and LICENSE ships in both artifacts.
 - Metadata-Version 2.5.
