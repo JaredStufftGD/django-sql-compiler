@@ -17,6 +17,9 @@ class SQLCompilerQuerySet(QuerySet):
         The SQL is built for the queryset's own database alias, so the dialect and the
         escaping come from the same database.
 
+        A queryset Django evaluates as empty (for example `.none()`) compiles to SQL that returns
+        no rows and has the same columns.
+
         The result is decoded with the encoding the driver reports for this connection,
         and undecodable output raises instead of being garbled.
         """
@@ -27,7 +30,7 @@ class SQLCompilerQuerySet(QuerySet):
         if not connection:
             raise NotImplementedError('{} backend is not supported.'.format(connections[alias].settings_dict['ENGINE']))
 
-        query, params = self.query.get_compiler(using=alias).as_sql()
+        query, params = utils.query_sql_and_params(self.query, alias)
 
         backend_name = connection.settings_dict['ENGINE']
         compiler = compilers.compiler_map[backend_name]()
