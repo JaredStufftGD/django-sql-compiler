@@ -3,7 +3,9 @@ from types import SimpleNamespace
 import django.db.models.sql.query
 import pytest
 from django.conf import settings
+from django.core.exceptions import EmptyResultSet
 from django.db import connections, models
+from django.db.models import Count, Q
 from django.db.utils import ConnectionHandler
 from django.test import override_settings
 
@@ -133,3 +135,71 @@ def test_unsupported_backend_message_names_the_router_alias_engine(unsupported_o
         with pytest.raises(NotImplementedError) as excinfo:
             Widget.objects.all().executable_query
     assert_names_other_engine(unsupported_other, excinfo)
+
+
+EMPTY_SHAPES = [
+    ('none', lambda: Widget.objects.none(), lambda: Widget.objects.all()),
+    ('in_empty', lambda: Widget.objects.filter(id__in=[]), lambda: Widget.objects.all()),
+    ('values', lambda: Widget.objects.filter(id__in=[]).values('name'), lambda: Widget.objects.values('name')),
+    ('values_list', lambda: Widget.objects.filter(id__in=[]).values_list('pk', 'name'), lambda: Widget.objects.values_list('pk', 'name')),
+    ('union_all_empty', lambda: Widget.objects.filter(id__in=[]).union(Widget.objects.filter(name__in=[])), lambda: Widget.objects.all().union(Widget.objects.all())),
+    ('subquery_none', lambda: Widget.objects.filter(pk__in=Widget.objects.none()), lambda: Widget.objects.filter(pk__in=Widget.objects.all())),
+    ('empty_having', lambda: Widget.objects.annotate(c=Count('id')).filter(c__in=[]), lambda: Widget.objects.annotate(c=Count('id'))),
+]
+EMPTY_SHAPE_IDS = [shape[0] for shape in EMPTY_SHAPES]
+# union columns are compared on live DBs in tests/db/test_empty.py
+SELECT_LIST_SHAPE_IDS = [shape_id for shape_id in EMPTY_SHAPE_IDS if shape_id != 'union_all_empty']
+
+
+def empty_shape(shape_id):
+    return next(shape for shape in EMPTY_SHAPES if shape[0] == shape_id)
+
+
+@pytest.mark.parametrize('shape_id', EMPTY_SHAPE_IDS)
+def test_empty_shapes_compile_without_empty_result_set(shape_id):
+    qs = empty_shape(shape_id)[1]()
+    with pytest.raises(EmptyResultSet):
+        qs.query.get_compiler(using='default').as_sql()
+    sql, params = sql_compiler.utils.query_sql_and_params(qs.query, 'default')
+    assert '0 = 1' in sql
+    assert connections['default'].connection is None
+    with pytest.raises(EmptyResultSet):
+        qs.query.get_compiler(using='default').as_sql()
+
+
+@pytest.mark.parametrize('shape_id', SELECT_LIST_SHAPE_IDS)
+def test_empty_shapes_keep_the_counterpart_select_list(shape_id):
+    _, empty_factory, counterpart_factory = empty_shape(shape_id)
+    sql, params = sql_compiler.utils.query_sql_and_params(empty_factory().query, 'default')
+    counterpart_sql = counterpart_factory().query.get_compiler(using='default').as_sql()[0]
+    assert sql.split(' FROM ')[0] == counterpart_sql.split(' FROM ')[0]
+
+
+@pytest.mark.parametrize('factory', [
+    pytest.param(lambda: Widget.objects.filter(name='a'), id='plain'),
+    pytest.param(lambda: Widget.objects.filter(id__in=[]).union(Widget.objects.filter(name='a')), id='union_one_empty'),
+    pytest.param(lambda: Widget.objects.filter(Q(pk__in=Widget.objects.none()) | Q(name='a')), id='or_empty_subquery'),
+])
+def test_working_querysets_compile_byte_identically(factory):
+    q = factory().query
+    assert sql_compiler.utils.query_sql_and_params(q, 'default') == q.get_compiler(using='default').as_sql()
+
+
+def test_executable_query_retries_empty_queryset_on_its_alias(monkeypatch):
+    stub, _ = stub_executable_query(monkeypatch, b'SELECT 1')
+    monkeypatch.setattr(sql_compiler.queryset, 'connections', {'other': stub})
+    calls = []
+
+    def get_compiler(self, using=None, connection=None, elide_empty=True):
+        calls.append((using, elide_empty))
+
+        def as_sql():
+            if elide_empty:
+                raise EmptyResultSet()
+            return ('SELECT 1 WHERE 0 = 1', ())
+
+        return SimpleNamespace(as_sql=as_sql)
+
+    monkeypatch.setattr(django.db.models.sql.query.Query, 'get_compiler', get_compiler)
+    assert Widget.objects.using('other').none().executable_query == 'SELECT 1'
+    assert calls == [('other', True), ('other', False)]
