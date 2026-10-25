@@ -174,7 +174,41 @@ def test_importing_package_does_not_import_db_drivers():
     assert subprocess.run([sys.executable, '-c', code]).returncode == 0
 
 
-@pytest.mark.xfail(strict=True, raises=NameError, reason='mysql.py raises ProgrammingError without importing it, so a param-count mismatch raises NameError')
 def test_mogrify_param_mismatch_raises_programming_error():
     with pytest.raises(ProgrammingError):
         MySQLCompiler().mogrify(StubCursor(), 'SELECT %s, %s', ('a',))
+
+
+@pytest.mark.parametrize('query, args, cause_type', [
+    ('SELECT %s, %s', ('a',), TypeError),
+    ('SELECT %s', ('a', 'b'), TypeError),
+    ('SELECT %(x)s', ('a',), TypeError),
+    ('SELECT %s', {'x': 1}, TypeError),
+    ('SELECT %s %(x)s', {'x': 1}, TypeError),
+    ('SELECT %(missing_key)s', {'other': 1}, KeyError),
+    ('SELECT 100%', (), ValueError),
+    ("SELECT 'a%z'", ('a',), ValueError),
+    ('SELECT %(x', {'x': 1}, ValueError),
+], ids=[
+    'too_few',
+    'too_many',
+    'named_placeholder_sequence_params',
+    'positional_placeholder_dict_params',
+    'mixed_placeholders_dict_params',
+    'missing_key',
+    'stray_percent',
+    'unsupported_format_char',
+    'unterminated_key',
+])
+def test_mogrify_formatting_failure_raises_programming_error(query, args, cause_type):
+    with pytest.raises(ProgrammingError) as excinfo:
+        MySQLCompiler().mogrify(StubCursor(), query, args)
+    assert isinstance(excinfo.value.__cause__, cause_type)
+    assert str(excinfo.value.__cause__) in str(excinfo.value)
+
+
+def test_mogrify_missing_key_message_names_the_key():
+    with pytest.raises(ProgrammingError) as excinfo:
+        MySQLCompiler().mogrify(StubCursor(), 'SELECT %(missing_key)s', {'other': 1})
+    assert 'missing_key' in str(excinfo.value)
+    assert isinstance(excinfo.value.__cause__, KeyError)

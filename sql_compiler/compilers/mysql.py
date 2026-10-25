@@ -1,5 +1,7 @@
 import codecs
 
+from django.db.utils import ProgrammingError
+
 from .base import BaseSQLCompiler
 
 
@@ -32,7 +34,7 @@ class MySQLCompiler(BaseSQLCompiler):
                 args = tuple(map(db.literal, args))
             try:
                 query = query % args
-            except TypeError as m:
-                raise ProgrammingError(str(m))
+            except (TypeError, KeyError, ValueError) as m:
+                raise ProgrammingError(str(m)) from m
 
         return query
