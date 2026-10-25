@@ -5,6 +5,7 @@
 # xfail (GRO-14) before the comparison, so re-capture when GRO-14 is fixed.
 # 'non_ascii', 'non_ascii_cjk', 'non_ascii_emoji' (and MySQL 'non_ascii_euro') hold non-ASCII values, checked by
 # test_non_ascii_param_is_not_garbled, the non-ASCII CASES and the MySQL latin1 test.
+# 'union_one_empty', 'union_none_part' and 'or_empty_subquery' are empty-looking querysets that compiled before GRO-13 was fixed; they were captured from the pre-fix code and must stay byte-identical.
 
 EXPECTED = {}
 
@@ -28,6 +29,9 @@ EXPECTED['postgres'] = {
     'non_ascii': POSTGRES_SELECT + 'WHERE "sqlcompiler_thing"."name" = \'café\'',
     'non_ascii_cjk': POSTGRES_SELECT + 'WHERE "sqlcompiler_thing"."name" = \'東京\'',
     'non_ascii_emoji': POSTGRES_SELECT + 'WHERE "sqlcompiler_thing"."name" = \'😀\'',
+    'union_one_empty': '(SELECT "sqlcompiler_thing"."id" AS "col1", "sqlcompiler_thing"."name" AS "col2", "sqlcompiler_thing"."other" AS "col3", "sqlcompiler_thing"."n" AS "col4", "sqlcompiler_thing"."flag" AS "col5", "sqlcompiler_thing"."day" AS "col6", "sqlcompiler_thing"."ts" AS "col7", "sqlcompiler_thing"."dec" AS "col8" FROM "sqlcompiler_thing" WHERE "sqlcompiler_thing"."name" = \'plain\')',
+    'union_none_part': POSTGRES_SELECT + 'WHERE "sqlcompiler_thing"."name" = \'plain\'',
+    'or_empty_subquery': POSTGRES_SELECT + 'WHERE "sqlcompiler_thing"."name" = \'plain\'',
 }
 
 MYSQL_SELECT = 'SELECT `sqlcompiler_thing`.`id`, `sqlcompiler_thing`.`name`, `sqlcompiler_thing`.`other`, `sqlcompiler_thing`.`n`, `sqlcompiler_thing`.`flag`, `sqlcompiler_thing`.`day`, `sqlcompiler_thing`.`ts`, `sqlcompiler_thing`.`dec` FROM `sqlcompiler_thing` '
@@ -51,4 +55,7 @@ EXPECTED['mysql'] = {
     'non_ascii_cjk': MYSQL_SELECT + "WHERE `sqlcompiler_thing`.`name` = '東京'",
     'non_ascii_emoji': MYSQL_SELECT + "WHERE `sqlcompiler_thing`.`name` = '😀'",
     'non_ascii_euro': MYSQL_SELECT + "WHERE `sqlcompiler_thing`.`name` = '€'",
+    'union_one_empty': "(SELECT `sqlcompiler_thing`.`id` AS `col1`, `sqlcompiler_thing`.`name` AS `col2`, `sqlcompiler_thing`.`other` AS `col3`, `sqlcompiler_thing`.`n` AS `col4`, `sqlcompiler_thing`.`flag` AS `col5`, `sqlcompiler_thing`.`day` AS `col6`, `sqlcompiler_thing`.`ts` AS `col7`, `sqlcompiler_thing`.`dec` AS `col8` FROM `sqlcompiler_thing` WHERE `sqlcompiler_thing`.`name` = 'plain')",
+    'union_none_part': MYSQL_SELECT + "WHERE `sqlcompiler_thing`.`name` = 'plain'",
+    'or_empty_subquery': MYSQL_SELECT + "WHERE `sqlcompiler_thing`.`name` = 'plain'",
 }
