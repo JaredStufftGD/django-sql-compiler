@@ -5,7 +5,14 @@
 A light-weight module to generate usable SQL from a Django QuerySet.
 
 ## Backend Support
-Currently, `django-sql-compiler` only supports connections made via the `django.db.backends.postgresql` and `django.db.backends.mysql` backends.
+`django-sql-compiler` supports connections made via these Django `ENGINE` values:
+
+- `django.db.backends.postgresql`
+- `django.db.backends.postgresql_psycopg2`: a legacy alias for the PostgreSQL backend that Django removed in Django 3.0. The package still accepts the ENGINE string and maps it to the same compiler.
+- `django_tenants.postgresql_backend` (django-tenants)
+- `django.db.backends.mysql` (via mysqlclient)
+
+PostgreSQL connections currently require psycopg2; psycopg 3 isn't supported yet. If psycopg 3 is installed, Django uses it and `executable_query` raises.
 
 ## About Django SQL Compiler
 The Django ORM is very useful for abstracting away SQL queries from the focus of the developer. This is very useful

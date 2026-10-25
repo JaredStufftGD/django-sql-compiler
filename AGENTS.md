@@ -12,9 +12,19 @@ There is a pytest suite in `tests/` that by default needs no database server and
 
 - Set up the dev environment: `uv sync` (creates `.venv/` at the repo root with Django and the `dev` group, including pytest, from the committed `uv.lock`; use `uv sync --locked` to fail on drift). After editing dependencies or bumping `[project] version` in `pyproject.toml`, run `uv lock` and commit `uv.lock`; CI's lock check (`uv lock --check`) and every `--locked` run fail on a stale lock.
 - Run the tests: `uv run pytest` (after `uv sync`). `tests/conftest.py` builds the Django settings from `tests/dbconfig.py`: a live PostgreSQL or MySQL `default` alias when one is configured or reachable, otherwise an unsupported in-memory SQLite alias that never connects (see DB-backed tests below). Tests marked `xfail(strict=True, raises=...)` document known bugs; the DB pins name their issue (GRO-13, GRO-14). When you fix one of those bugs, remove its xfail marker, because a strict xfail that starts passing fails the suite.
-- Build a distribution: `uv build` (writes the sdist and wheel to `dist/`, gitignored; the build backend is flit_core and the artifacts contain only `sql_compiler/`)
-- Check the artifacts before publishing: `uvx --from "twine>=6.1" twine check --strict dist/*`
-- The version is set in `pyproject.toml` (`[project] version`); bump it there when releasing.
+- Build a distribution: `uv build` (writes the sdist and wheel to `dist/`, gitignored; the build backend is flit_core). `uv build` builds the wheel from the sdist, so any file the package needs must be in the sdist.
+  - The sdist `django_sql_compiler-<version>.tar.gz` contains `sql_compiler/`, `pyproject.toml`, `README.md`, `LICENSE`, `CHANGELOG.md` (added through `[tool.flit.sdist] include` in `pyproject.toml`) and `PKG-INFO`.
+  - The wheel `django_sql_compiler-<version>-py3-none-any.whl` contains `sql_compiler/` and its `.dist-info` (`METADATA`, `WHEEL`, `RECORD`, `licenses/LICENSE`).
+  - Tests, `uv.lock`, `docker-compose.yml` and `.github` are not shipped.
+- Release steps (publishing is manual; every upload, tag push and release needs explicit confirmation):
+  1. Bump `[project] version` in `pyproject.toml`.
+  2. Run `uv lock` and commit `uv.lock` (check with `uv lock --check`).
+  3. Add a `## [X.Y.Z] - YYYY-MM-DD` entry to `CHANGELOG.md` listing every user-visible change.
+  4. Open the release PR and merge it with CI green.
+  5. On the merged `master` commit, clear stale artifacts with `rm -rf dist`, then run `uv build` and `uvx --from "twine>=6.1" twine check --strict dist/*`, and confirm that `dist/` holds exactly one sdist and one wheel for the new version.
+  6. Upload those files to TestPyPI first, then to PyPI (PyPI versions can't be reused).
+  7. Tag the merged commit `vX.Y.Z` and push the tag.
+  8. Create a GitHub release for the tag whose notes are the version's `CHANGELOG.md` section plus the sha256 of each uploaded file.
 - PyCharm: after `uv sync`, go to Settings > Project > Python Interpreter > Add Interpreter > Add Local Interpreter (PyCharm 2024.3+), choose type uv, and select the existing `.venv` (older versions: Virtualenv > Existing). The interpreter is `.venv\Scripts\python.exe` on Windows and `.venv/bin/python` elsewhere. `.idea/` stays gitignored. If imports show as unresolved after a dependency change, re-run `uv sync` and let PyCharm re-index.
 
 The unit suite covers the code that doesn't need a database. End-to-end `executable_query` behavior needs a live connection, because compilation goes through a real DB cursor; those DB-backed tests live in `tests/db/`.
