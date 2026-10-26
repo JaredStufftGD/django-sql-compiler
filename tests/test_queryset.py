@@ -186,12 +186,20 @@ def test_empty_shapes_compile_without_empty_result_set(shape_id):
         qs.query.get_compiler(using='default').as_sql()
 
 
+def group_by_clause(sql):
+    if ' GROUP BY ' not in sql:
+        return None
+    return sql.split(' GROUP BY ', 1)[1].split(' HAVING ')[0].split(' ORDER BY ')[0]
+
+
 @pytest.mark.parametrize('shape_id', SELECT_LIST_SHAPE_IDS)
 def test_empty_shapes_keep_the_counterpart_select_list(shape_id):
     _, empty_factory, counterpart_factory = empty_shape(shape_id)
     sql, params = sql_compiler.utils.query_sql_and_params(empty_factory().query, 'default')
     counterpart_sql = counterpart_factory().query.get_compiler(using='default').as_sql()[0]
     assert sql.split(' FROM ')[0] == counterpart_sql.split(' FROM ')[0]
+    # GROUP BY is what keeps an aggregate query (empty_having) at zero rows
+    assert group_by_clause(sql) == group_by_clause(counterpart_sql)
 
 
 @pytest.mark.parametrize('factory', [
