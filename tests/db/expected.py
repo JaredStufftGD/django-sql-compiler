@@ -4,8 +4,9 @@
 # EXPECTED['postgres'] is psycopg2 output. POSTGRES_PSYCOPG3_OVERRIDES holds the psycopg 3 strings that
 # differ from it (identical under client-side and server-side binding); pinned_sql picks the dict for the
 # driver under test. EXPECTED['mysql'] is mysqlclient output.
-# 'non_ascii', 'non_ascii_cjk', 'non_ascii_emoji' (and MySQL 'non_ascii_euro') hold non-ASCII values, checked by
-# test_non_ascii_param_is_not_garbled, the non-ASCII CASES and the MySQL latin1 test.
+# 'non_ascii', 'non_ascii_cjk', 'non_ascii_emoji', 'non_ascii_euro' hold non-ASCII values, checked by
+# test_non_ascii_param_is_not_garbled, the non-ASCII CASES, the MySQL latin1 test and the Postgres
+# non-UTF-8 client encoding tests ('non_ascii' and 'non_ascii_euro').
 # 'union_one_empty', 'union_none_part' and 'or_empty_subquery' are empty-looking querysets that compiled before GRO-13 was fixed; they were captured from the pre-fix code and must stay byte-identical.
 # 'none' is Thing.objects.none(), captured after the GRO-13 fix (zero-row SQL with the full select list).
 
@@ -31,6 +32,7 @@ EXPECTED['postgres'] = {
     'non_ascii': POSTGRES_SELECT + 'WHERE "sqlcompiler_thing"."name" = \'café\'',
     'non_ascii_cjk': POSTGRES_SELECT + 'WHERE "sqlcompiler_thing"."name" = \'東京\'',
     'non_ascii_emoji': POSTGRES_SELECT + 'WHERE "sqlcompiler_thing"."name" = \'😀\'',
+    'non_ascii_euro': POSTGRES_SELECT + 'WHERE "sqlcompiler_thing"."name" = \'€\'',
     'union_one_empty': '(SELECT "sqlcompiler_thing"."id" AS "col1", "sqlcompiler_thing"."name" AS "col2", "sqlcompiler_thing"."other" AS "col3", "sqlcompiler_thing"."n" AS "col4", "sqlcompiler_thing"."flag" AS "col5", "sqlcompiler_thing"."day" AS "col6", "sqlcompiler_thing"."ts" AS "col7", "sqlcompiler_thing"."dec" AS "col8" FROM "sqlcompiler_thing" WHERE "sqlcompiler_thing"."name" = \'plain\')',
     'union_none_part': POSTGRES_SELECT + 'WHERE "sqlcompiler_thing"."name" = \'plain\'',
     'or_empty_subquery': POSTGRES_SELECT + 'WHERE "sqlcompiler_thing"."name" = \'plain\'',
