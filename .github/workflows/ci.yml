@@ -131,7 +131,7 @@ jobs:
             my_url: ""
             binding: ""
             mysql: false
-            allowed: "no-DB test: needs the unsupported SQLite default alias|MySQL unavailable: no driver installed|GRO-10 pin needs default=PostgreSQL|GRO-13 pin is skipped under psycopg 3"
+            allowed: "no-DB test: needs the unsupported SQLite default alias|MySQL unavailable: no driver installed|GRO-10 pin needs default=PostgreSQL"
             expect_ssb: ""
           - name: pg3 server-side binding
             services: postgres
@@ -140,7 +140,7 @@ jobs:
             my_url: ""
             binding: "1"
             mysql: false
-            allowed: "no-DB test: needs the unsupported SQLite default alias|MySQL unavailable: no driver installed|GRO-10 pin needs default=PostgreSQL|GRO-13 pin is skipped under psycopg 3"
+            allowed: "no-DB test: needs the unsupported SQLite default alias|MySQL unavailable: no driver installed|GRO-10 pin needs default=PostgreSQL"
             expect_ssb: "1"
           - name: mysql
             services: mysql

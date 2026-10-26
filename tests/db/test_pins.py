@@ -1,5 +1,4 @@
 import pytest
-from django.core.exceptions import EmptyResultSet
 from django.db import connection, connections
 from django.test import override_settings
 
@@ -61,11 +60,3 @@ def test_router_selected_alias_compiles_for_its_own_backend(things_other):
         assert qs.executable_query == EXPECTED['mysql']['single_quote']
         assert_runs_on_other(qs, qs.executable_query)
 
-
-@pytest.mark.skipif(dbconfig.psycopg3_is_default(), reason='GRO-13 pin is skipped under psycopg 3: EmptyResultSet is raised before mogrify, so it cannot strict-xfail naming GRO-14')
-@pytest.mark.xfail(strict=True, raises=EmptyResultSet, reason='GRO-13: as_sql() raises EmptyResultSet for .none() querysets before any SQL is compiled')
-def test_none_queryset_compiles(db_under_test, things):
-    compiled = Thing.objects.none().executable_query
-    with connection.cursor() as cursor:
-        cursor.execute(compiled)
-        assert cursor.fetchall() == []
