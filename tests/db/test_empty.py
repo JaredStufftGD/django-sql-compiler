@@ -1,6 +1,6 @@
 import pytest
 from django.db import connection, connections
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Value
 
 from tests import dbconfig
 
@@ -51,6 +51,8 @@ EMPTY_CASES = [
      lambda: Thing.objects.filter(name='plain').union(Thing.objects.filter(name="it's"))),
     ('subquery_none', lambda: Thing.objects.filter(pk__in=Thing.objects.none()), lambda: Thing.objects.filter(pk__in=Thing.objects.all())),
     ('empty_having', lambda: Thing.objects.annotate(c=Count('id')).filter(c__in=[]), lambda: Thing.objects.annotate(c=Count('id'))),
+    ('aggregate_without_group_by', lambda: Thing.objects.values(x=Value(1)).annotate(c=Count('id')).filter(c__in=[]), lambda: Thing.objects.values(x=Value(1)).annotate(c=Count('id'))),
+    ('distinct_ordered', lambda: Thing.objects.filter(id__in=[]).values('name').order_by('id').distinct(), lambda: Thing.objects.values('name').order_by('id').distinct()),
 ]
 EMPTY_IDS = [case_id for case_id, _, _ in EMPTY_CASES]
 
