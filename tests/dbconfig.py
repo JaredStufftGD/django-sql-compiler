@@ -34,10 +34,6 @@ def mysql_driver():
     return None
 
 
-def psycopg3_is_default():
-    return STATE['default'] == 'postgres' and STATE['postgres']['driver'] == 'psycopg'
-
-
 def gro10_ready():
     return (
         STATE['default'] == 'postgres'
