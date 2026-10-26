@@ -2,14 +2,11 @@ import pytest
 
 from sql_compiler import utils
 from sql_compiler.compilers import PostgresCompiler
-from tests import dbconfig
 
 from .cases import CASE_IDS, run_case
 from .expected import pinned_sql
 from .models import Thing
 
-# Exception type each driver raises for a value the client encoding cannot represent
-UNENCODABLE_ERRORS = {'psycopg2': UnicodeEncodeError, 'psycopg': UnicodeEncodeError}
 
 @pytest.mark.parametrize('case_id', CASE_IDS)
 def test_postgres_case(postgres_db, things, case_id):
@@ -68,7 +65,8 @@ def test_unencodable_value_raises_the_driver_error(postgres_db, things):
     postgres_db.ensure_connection()
     set_client_encoding(postgres_db, 'LATIN1')
     try:
-        with pytest.raises(UNENCODABLE_ERRORS[dbconfig.STATE['postgres']['driver']]):
+        # Both drivers raise UnicodeEncodeError from their own string dumper
+        with pytest.raises(UnicodeEncodeError):
             Thing.objects.filter(name='東京').executable_query
     finally:
         set_client_encoding(postgres_db, 'UTF8')
