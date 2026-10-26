@@ -5,7 +5,7 @@ import pytest
 from django.conf import settings
 from django.core.exceptions import EmptyResultSet
 from django.db import connections, models
-from django.db.models import Count, Q
+from django.db.models import Count, Exists, Q, Subquery
 from django.db.utils import ConnectionHandler
 from django.test import override_settings
 
@@ -145,6 +145,7 @@ EMPTY_SHAPES = [
     ('union_all_empty', lambda: Widget.objects.filter(id__in=[]).union(Widget.objects.filter(name__in=[])), lambda: Widget.objects.all().union(Widget.objects.all())),
     ('subquery_none', lambda: Widget.objects.filter(pk__in=Widget.objects.none()), lambda: Widget.objects.filter(pk__in=Widget.objects.all())),
     ('empty_having', lambda: Widget.objects.annotate(c=Count('id')).filter(c__in=[]), lambda: Widget.objects.annotate(c=Count('id'))),
+    ('order_by_empty_subquery', lambda: Widget.objects.order_by(Subquery(Widget.objects.none().values('name')[:1])), lambda: Widget.objects.all()),
 ]
 EMPTY_SHAPE_IDS = [shape[0] for shape in EMPTY_SHAPES]
 # union columns are compared on live DBs in tests/db/test_empty.py
@@ -173,6 +174,26 @@ def test_empty_shapes_keep_the_counterpart_select_list(shape_id):
     sql, params = sql_compiler.utils.query_sql_and_params(empty_factory().query, 'default')
     counterpart_sql = counterpart_factory().query.get_compiler(using='default').as_sql()[0]
     assert sql.split(' FROM ')[0] == counterpart_sql.split(' FROM ')[0]
+
+
+@pytest.mark.parametrize('factory', [
+    pytest.param(lambda: Widget.objects.order_by(Subquery(Widget.objects.none().values('name')[:1])), id='subquery'),
+    pytest.param(lambda: Widget.objects.order_by(Exists(Widget.objects.none())), id='exists'),
+])
+def test_ordering_by_an_empty_subquery_compiles(factory):
+    # Ordering by Exists(<empty>) raises EmptyResultSet only on Django 4.2; later lines compile it as is,
+    # so it must then stay byte-identical.
+    q = factory().query
+    try:
+        unchanged = q.get_compiler(using='default').as_sql()
+    except EmptyResultSet:
+        unchanged = None
+    sql, params = sql_compiler.utils.query_sql_and_params(q, 'default')
+    if unchanged is None:
+        assert '0 = 1' in sql
+        assert 'ORDER BY' not in sql
+    else:
+        assert (sql, params) == unchanged
 
 
 @pytest.mark.parametrize('factory', [

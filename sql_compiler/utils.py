@@ -35,11 +35,13 @@ def zero_row_query(query):
     Returns a clone of the query that matches no rows and keeps the same select list (and GROUP BY).
 
     The whole WHERE tree is replaced, including members Django moves to HAVING or QUALIFY, because the
-    compiler does not turn an empty HAVING into an always-false predicate. Combined queries are handled
-    part by part. The original query is not changed.
+    compiler does not turn an empty HAVING into an always-false predicate. Ordering is cleared, because
+    zero rows have no order and an ORDER BY on an empty subquery would raise EmptyResultSet again.
+    Combined queries are handled part by part. The original query is not changed.
     """
 
     clone = query.clone()
+    clone.clear_ordering(force=True)
     if clone.combined_queries:
         clone.combined_queries = tuple(zero_row_query(part) for part in clone.combined_queries)
     else:
@@ -53,8 +55,7 @@ def query_sql_and_params(query, using):
     Compiles the query for the alias and returns the parameterized SQL and its params.
 
     A query Django itself evaluates as empty is compiled again as a zero-row query with the same columns,
-    and every query that compiles today gets exactly the same SQL and params. EmptyResultSet raised outside
-    WHERE/HAVING (for example ordering by an empty subquery) still propagates.
+    and every query that compiles today gets exactly the same SQL and params.
     """
 
     try:
