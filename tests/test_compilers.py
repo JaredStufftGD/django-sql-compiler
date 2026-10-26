@@ -1,5 +1,6 @@
 import subprocess
 import sys
+import types
 from types import SimpleNamespace
 
 import pytest
@@ -94,55 +95,196 @@ def raw_connection(encoding):
     return SimpleNamespace(connection=SimpleNamespace(encoding=encoding))
 
 
-def test_postgres_python_encoding_win1252_decodes_euro(monkeypatch):
+class FakePsycopg3Connection:
+    def __init__(self, encoding):
+        self.info = SimpleNamespace(encoding=encoding)
+
+
+class FakeClientCursor:
+    built_on = []
+
+    def __init__(self, connection):
+        self.connection = connection
+        FakeClientCursor.built_on.append(connection)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        return False
+
+    def mogrify(self, query, params):
+        return query % tuple("'{}'".format(p) for p in params)
+
+
+class FakePsycopg2Connection:
+    def __init__(self, encoding):
+        self.encoding = encoding
+
+
+@pytest.fixture
+def fake_psycopg(monkeypatch):
+    module = types.ModuleType('psycopg')
+    module.Connection = FakePsycopg3Connection
+    module.ClientCursor = FakeClientCursor
+    FakeClientCursor.built_on = []
+    monkeypatch.setitem(sys.modules, 'psycopg', module)
+    return module
+
+
+@pytest.fixture
+def fake_psycopg2(monkeypatch):
+    module = types.ModuleType('psycopg2.extensions')
+    module.connection = FakePsycopg2Connection
+    monkeypatch.setitem(sys.modules, 'psycopg2.extensions', module)
     monkeypatch.setattr(PostgresCompiler, 'encoding_map', lambda self: PG_ENCODINGS)
-    encoding = PostgresCompiler().python_encoding(raw_connection('WIN1252'))
+    return module
+
+
+class FakeDjangoConnection:
+    """Stands in for Django's DatabaseWrapper: .connection is the raw driver connection."""
+
+    def __init__(self, raw, cursor_mogrify=None, ensure_connection=None):
+        self.connection = raw
+        self.cursor_mogrify = cursor_mogrify
+        self.ensure_connection_to = ensure_connection
+
+    def ensure_connection(self):
+        self.connection = self.ensure_connection_to
+
+    def cursor(self):
+        outer = self
+
+        class Cursor:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc_info):
+                return False
+
+            def mogrify(self, query, params):
+                if outer.cursor_mogrify is None:
+                    raise AssertionError('psycopg 3 must not use the Django cursor mogrify')
+                return outer.cursor_mogrify(query, params)
+
+        return Cursor()
+
+
+def test_postgres_psycopg3_compile_sql_returns_bytes_in_connection_encoding(fake_psycopg):
+    raw = FakePsycopg3Connection('cp1252')
+    compiled = PostgresCompiler().compile_sql(FakeDjangoConnection(raw), 'SELECT %s', ('café €',))
+    assert compiled == b"SELECT 'caf\xe9 \x80'"
+    assert FakeClientCursor.built_on == [raw]
+
+
+def test_postgres_psycopg3_compile_sql_does_not_use_the_django_cursor_mogrify(fake_psycopg):
+    connection = FakeDjangoConnection(FakePsycopg3Connection('utf-8'))
+    assert PostgresCompiler().compile_sql(connection, 'SELECT %s', ('a',)) == b"SELECT 'a'"
+
+
+@pytest.mark.parametrize('encoding', ['utf-8', 'cp1252'])
+def test_postgres_and_tenants_compilers_give_the_same_psycopg3_output(fake_psycopg, encoding):
+    raw = FakePsycopg3Connection(encoding)
+    connection = FakeDjangoConnection(raw)
+    postgres = PostgresCompiler().compile_sql(connection, 'SELECT %s', ('café',))
+    tenants = PostgresTenantsCompiler().compile_sql(connection, 'SELECT %s', ('café',))
+    assert postgres == tenants == "SELECT 'café'".encode(encoding)
+    assert PostgresCompiler().python_encoding(connection) == PostgresTenantsCompiler().python_encoding(connection)
+    assert compiler_map['django.db.backends.postgresql_psycopg2'] is Psycopg2Compiler
+
+
+def test_postgres_psycopg2_compile_sql_uses_the_django_cursor_mogrify(fake_psycopg2):
+    connection = FakeDjangoConnection(
+        FakePsycopg2Connection('UTF8'),
+        cursor_mogrify=lambda query, params: b'mogrified:' + query.encode(),
+    )
+    assert PostgresCompiler().compile_sql(connection, 'SELECT 1', ()) == b'mogrified:SELECT 1'
+
+
+def test_postgres_python_encoding_win1252_decodes_euro(fake_psycopg2):
+    encoding = PostgresCompiler().python_encoding(FakeDjangoConnection(FakePsycopg2Connection('WIN1252')))
     assert utils.bytes_to_string(b"SELECT 'caf\xe9 \x80'", encoding) == "SELECT 'café €'"
 
 
-def test_postgres_python_encoding_latin1_decodes_cafe(monkeypatch):
-    monkeypatch.setattr(PostgresCompiler, 'encoding_map', lambda self: PG_ENCODINGS)
-    encoding = PostgresCompiler().python_encoding(raw_connection('LATIN1'))
+def test_postgres_python_encoding_latin1_decodes_cafe(fake_psycopg2):
+    encoding = PostgresCompiler().python_encoding(FakeDjangoConnection(FakePsycopg2Connection('LATIN1')))
     assert utils.bytes_to_string(b"SELECT 'caf\xe9'", encoding) == "SELECT 'café'"
 
 
-def test_postgres_python_encoding_unknown_name_raises_lookup_error(monkeypatch):
-    monkeypatch.setattr(PostgresCompiler, 'encoding_map', lambda self: PG_ENCODINGS)
+def test_postgres_python_encoding_unknown_name_raises_lookup_error(fake_psycopg2):
     with pytest.raises(LookupError):
-        PostgresCompiler().python_encoding(raw_connection('NOT_A_PG_ENCODING'))
-
-
-def psycopg3_raw_connection(encoding):
-    # psycopg 3 has no connection.encoding; info.encoding is already a Python codec name
-    return SimpleNamespace(connection=SimpleNamespace(info=SimpleNamespace(encoding=encoding)))
+        PostgresCompiler().python_encoding(FakeDjangoConnection(FakePsycopg2Connection('NOT_A_PG_ENCODING')))
 
 
 def no_psycopg2_map(self):
     raise AssertionError('psycopg 3 connections must not use the psycopg2 encoding map')
 
 
-def test_postgres_python_encoding_psycopg3_utf8(monkeypatch):
+def test_postgres_python_encoding_psycopg3_utf8(monkeypatch, fake_psycopg):
     monkeypatch.setattr(PostgresCompiler, 'encoding_map', no_psycopg2_map)
-    assert PostgresCompiler().python_encoding(psycopg3_raw_connection('utf-8')) == 'utf-8'
+    assert PostgresCompiler().python_encoding(FakeDjangoConnection(FakePsycopg3Connection('utf-8'))) == 'utf-8'
 
 
-def test_postgres_python_encoding_psycopg3_cp1252_decodes_euro(monkeypatch):
+def test_postgres_python_encoding_psycopg3_cp1252_decodes_euro(monkeypatch, fake_psycopg):
     monkeypatch.setattr(PostgresCompiler, 'encoding_map', no_psycopg2_map)
-    encoding = PostgresCompiler().python_encoding(psycopg3_raw_connection('cp1252'))
+    encoding = PostgresCompiler().python_encoding(FakeDjangoConnection(FakePsycopg3Connection('cp1252')))
     assert utils.bytes_to_string(b"SELECT 'caf\xe9 \x80'", encoding) == "SELECT 'café €'"
 
 
-def test_postgres_python_encoding_psycopg3_unknown_name_raises_lookup_error(monkeypatch):
+def test_postgres_python_encoding_psycopg3_unknown_name_raises_lookup_error(monkeypatch, fake_psycopg):
     monkeypatch.setattr(PostgresCompiler, 'encoding_map', no_psycopg2_map)
     with pytest.raises(LookupError):
-        PostgresCompiler().python_encoding(psycopg3_raw_connection('not-a-codec'))
+        PostgresCompiler().python_encoding(FakeDjangoConnection(FakePsycopg3Connection('not-a-codec')))
 
 
-def test_postgres_python_encoding_unknown_name_has_no_chained_key_error(monkeypatch):
-    monkeypatch.setattr(PostgresCompiler, 'encoding_map', lambda self: PG_ENCODINGS)
+def test_postgres_python_encoding_unknown_name_has_no_chained_key_error(fake_psycopg2):
     with pytest.raises(LookupError) as excinfo:
-        PostgresCompiler().python_encoding(raw_connection('NOT_A_PG_ENCODING'))
+        PostgresCompiler().python_encoding(FakeDjangoConnection(FakePsycopg2Connection('NOT_A_PG_ENCODING')))
     assert excinfo.value.__suppress_context__
+
+
+LOOKALIKES = [
+    lambda: SimpleNamespace(info=SimpleNamespace(encoding='utf-8')),
+    lambda: SimpleNamespace(encoding='UTF8'),
+    lambda: object(),
+]
+
+
+@pytest.mark.parametrize('drivers_installed', [True, False])
+@pytest.mark.parametrize('make_raw', LOOKALIKES, ids=['info_encoding', 'encoding', 'object'])
+def test_postgres_lookalike_connection_is_unsupported(monkeypatch, make_raw, drivers_installed):
+    if drivers_installed:
+        psycopg = types.ModuleType('psycopg')
+        psycopg.Connection = FakePsycopg3Connection
+        extensions = types.ModuleType('psycopg2.extensions')
+        extensions.connection = FakePsycopg2Connection
+        monkeypatch.setitem(sys.modules, 'psycopg', psycopg)
+        monkeypatch.setitem(sys.modules, 'psycopg2.extensions', extensions)
+    else:
+        monkeypatch.delitem(sys.modules, 'psycopg', raising=False)
+        monkeypatch.delitem(sys.modules, 'psycopg2.extensions', raising=False)
+    raw = make_raw()
+    connection = FakeDjangoConnection(raw, cursor_mogrify=lambda query, params: b'would succeed')
+    with pytest.raises(NotImplementedError) as compile_error:
+        PostgresCompiler().compile_sql(connection, 'SELECT 1', ())
+    with pytest.raises(NotImplementedError) as encoding_error:
+        PostgresCompiler().python_encoding(connection)
+    assert type(raw).__qualname__ in str(compile_error.value)
+    assert type(raw).__qualname__ in str(encoding_error.value)
+
+
+def test_postgres_unsupported_message_never_names_nonetype():
+    lookalike = SimpleNamespace(info=SimpleNamespace(encoding='utf-8'))
+    connection = FakeDjangoConnection(None, ensure_connection=lookalike)
+    with pytest.raises(NotImplementedError) as excinfo:
+        PostgresCompiler().python_encoding(connection)
+    assert 'SimpleNamespace' in str(excinfo.value)
+    assert 'NoneType' not in str(excinfo.value)
+
+
+def test_postgres_python_encoding_ensures_the_connection(fake_psycopg):
+    connection = FakeDjangoConnection(None, ensure_connection=FakePsycopg3Connection('utf-8'))
+    assert PostgresCompiler().python_encoding(connection) == 'utf-8'
 
 
 def test_postgres_subclasses_share_python_encoding():
