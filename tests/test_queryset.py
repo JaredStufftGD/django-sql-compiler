@@ -5,7 +5,8 @@ import pytest
 from django.conf import settings
 from django.core.exceptions import EmptyResultSet
 from django.db import connections, models
-from django.db.models import Count, Exists, Q, Subquery
+from django.db.models import Count, Exists, Q, Subquery, Window
+from django.db.models.functions import RowNumber
 from django.db.utils import ConnectionHandler
 from django.test import override_settings
 
@@ -151,14 +152,31 @@ EMPTY_SHAPE_IDS = [shape[0] for shape in EMPTY_SHAPES]
 # union columns are compared on live DBs in tests/db/test_empty.py
 SELECT_LIST_SHAPE_IDS = [shape_id for shape_id in EMPTY_SHAPE_IDS if shape_id != 'union_all_empty']
 
+# Shapes whose compilation differs between Django lines (sliced unions and elide_empty, combinator
+# parts, QUALIFY); only checked for not letting EmptyResultSet escape.
+CROSS_VERSION_SHAPES = [
+    ('union_all_empty_sliced', lambda: Widget.objects.filter(id__in=[]).union(Widget.objects.filter(id__in=[]))[:5]),
+    ('union_all_empty_ordered_sliced', lambda: Widget.objects.filter(id__in=[]).union(Widget.objects.filter(id__in=[])).order_by('name')[:3]),
+    ('intersection_empty_part', lambda: Widget.objects.all().intersection(Widget.objects.filter(id__in=[]))),
+    ('difference_empty_first', lambda: Widget.objects.filter(id__in=[]).difference(Widget.objects.all())),
+    ('window_qualify_empty', lambda: Widget.objects.annotate(rn=Window(RowNumber())).filter(rn__in=[])),
+    ('window_qualify_and_empty_where', lambda: Widget.objects.annotate(rn=Window(RowNumber())).filter(rn=1, id__in=[])),
+    ('empty_sliced', lambda: Widget.objects.filter(id__in=[])[:5]),
+    ('empty_offset', lambda: Widget.objects.filter(id__in=[])[2:5]),
+    ('zero_slice', lambda: Widget.objects.all()[0:0]),
+    ('distinct', lambda: Widget.objects.filter(id__in=[]).distinct()),
+    ('extra', lambda: Widget.objects.filter(id__in=[]).extra(select={'x': '%s'}, select_params=("o'k",), where=['name = %s'], params=['a'])),
+]
+COMPILE_SHAPES = [shape[:2] for shape in EMPTY_SHAPES] + CROSS_VERSION_SHAPES
+
 
 def empty_shape(shape_id):
     return next(shape for shape in EMPTY_SHAPES if shape[0] == shape_id)
 
 
-@pytest.mark.parametrize('shape_id', EMPTY_SHAPE_IDS)
+@pytest.mark.parametrize('shape_id', [shape[0] for shape in COMPILE_SHAPES])
 def test_empty_shapes_compile_without_empty_result_set(shape_id):
-    qs = empty_shape(shape_id)[1]()
+    qs = dict(COMPILE_SHAPES)[shape_id]()
     with pytest.raises(EmptyResultSet):
         qs.query.get_compiler(using='default').as_sql()
     sql, params = sql_compiler.utils.query_sql_and_params(qs.query, 'default')
@@ -199,6 +217,7 @@ def test_ordering_by_an_empty_subquery_compiles(factory):
 @pytest.mark.parametrize('factory', [
     pytest.param(lambda: Widget.objects.filter(name='a'), id='plain'),
     pytest.param(lambda: Widget.objects.filter(id__in=[]).union(Widget.objects.filter(name='a')), id='union_one_empty'),
+    pytest.param(lambda: Widget.objects.filter(id__in=[]).union(Widget.objects.filter(name='a'))[:5], id='union_one_empty_sliced'),
     pytest.param(lambda: Widget.objects.filter(Q(pk__in=Widget.objects.none()) | Q(name='a')), id='or_empty_subquery'),
 ])
 def test_working_querysets_compile_byte_identically(factory):
