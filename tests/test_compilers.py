@@ -309,8 +309,9 @@ def test_postgres_lookalike_connection_is_unsupported(monkeypatch, make_raw, dri
         monkeypatch.setitem(sys.modules, 'psycopg', psycopg)
         monkeypatch.setitem(sys.modules, 'psycopg2.extensions', extensions)
     else:
-        monkeypatch.delitem(sys.modules, 'psycopg', raising=False)
-        monkeypatch.delitem(sys.modules, 'psycopg2.extensions', raising=False)
+        # None, not a deleted key: an accidental import raises ImportError instead of half-reloading a real driver
+        monkeypatch.setitem(sys.modules, 'psycopg', None)
+        monkeypatch.setitem(sys.modules, 'psycopg2.extensions', None)
     raw = make_raw()
     connection = FakeDjangoConnection(raw, cursor_mogrify=lambda query, params: b'would succeed')
     with pytest.raises(NotImplementedError) as compile_error:
