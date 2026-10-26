@@ -31,13 +31,22 @@ class PostgresCompiler(BaseSQLCompiler):
             '{}.{} is not a psycopg2 or psycopg 3 connection; only those PostgreSQL drivers are supported.'.format(
                 type(raw).__module__, type(raw).__qualname__))
 
+    def psycopg_encoding(self, raw):
+        # psycopg 3 reports a Python codec name, or raises its NotSupportedError for a client encoding Python has
+        # no codec for (EUC_TW, MULE_INTERNAL); report that as LookupError, like an unknown psycopg2 encoding
+        not_supported = sys.modules['psycopg'].NotSupportedError
+        try:
+            name = raw.info.encoding
+        except not_supported as exc:
+            raise LookupError('unsupported PostgreSQL client encoding: {}'.format(exc)) from None
+        return codecs.lookup(name).name
+
     def python_encoding(self, connection):
         if connection.connection is None:
             connection.ensure_connection()
         raw = connection.connection
         if self.driver(raw) == 'psycopg':
-            # psycopg 3 already reports a Python codec name
-            return codecs.lookup(raw.info.encoding).name
+            return self.psycopg_encoding(raw)
         name = raw.encoding
         try:
             return self.encoding_map()[name]
@@ -48,10 +57,12 @@ class PostgresCompiler(BaseSQLCompiler):
         with connection.cursor() as cursor:
             raw = connection.connection
             if self.driver(raw) == 'psycopg':
+                # Resolve the codec first, so an encoding Python can't handle raises LookupError, not from mogrify
+                encoding = self.psycopg_encoding(raw)
                 from psycopg import ClientCursor
                 with ClientCursor(raw) as client_cursor:
                     text = client_cursor.mogrify(query, params)
-                compiled_sql = text.encode(codecs.lookup(raw.info.encoding).name)
+                compiled_sql = text.encode(encoding)
             else:
                 compiled_sql = cursor.mogrify(query, params)
 

@@ -95,9 +95,33 @@ def raw_connection(encoding):
     return SimpleNamespace(connection=SimpleNamespace(encoding=encoding))
 
 
+class FakeNotSupportedError(Exception):
+    """Stands in for psycopg.NotSupportedError, a DB-API error and not a LookupError."""
+
+
+# PostgreSQL client encodings with no Python codec, commented out of psycopg 3's _encodings.py table
+NO_PYTHON_CODEC = {'EUC_TW', 'MULE_INTERNAL'}
+
+
+class FakePsycopg3Info:
+    """
+    Like psycopg 3's ConnectionInfo: .encoding is a Python codec name, and for a client encoding Python has no
+    codec for it raises NotSupportedError (pg2pyenc), so it never returns an unknown name.
+    """
+
+    def __init__(self, encoding):
+        self.client_encoding = encoding
+
+    @property
+    def encoding(self):
+        if self.client_encoding in NO_PYTHON_CODEC:
+            raise FakeNotSupportedError('codec not available in Python: {!r}'.format(self.client_encoding))
+        return self.client_encoding
+
+
 class FakePsycopg3Connection:
     def __init__(self, encoding):
-        self.info = SimpleNamespace(encoding=encoding)
+        self.info = FakePsycopg3Info(encoding)
 
 
 class FakeClientCursor:
@@ -114,6 +138,8 @@ class FakeClientCursor:
         return False
 
     def mogrify(self, query, params):
+        # Like psycopg 3's Transformer, mogrify reads the connection encoding, so EUC_TW raises here too
+        self.connection.info.encoding
         return query % tuple("'{}'".format(p) for p in params)
 
 
@@ -127,6 +153,7 @@ def fake_psycopg(monkeypatch):
     module = types.ModuleType('psycopg')
     module.Connection = FakePsycopg3Connection
     module.ClientCursor = FakeClientCursor
+    module.NotSupportedError = FakeNotSupportedError
     FakeClientCursor.built_on = []
     monkeypatch.setitem(sys.modules, 'psycopg', module)
     return module
@@ -231,10 +258,25 @@ def test_postgres_python_encoding_psycopg3_cp1252_decodes_euro(monkeypatch, fake
     assert utils.bytes_to_string(b"SELECT 'caf\xe9 \x80'", encoding) == "SELECT 'café €'"
 
 
-def test_postgres_python_encoding_psycopg3_unknown_name_raises_lookup_error(monkeypatch, fake_psycopg):
+@pytest.mark.parametrize('client_encoding', sorted(NO_PYTHON_CODEC))
+def test_postgres_python_encoding_psycopg3_no_python_codec_raises_lookup_error(
+        monkeypatch, fake_psycopg, client_encoding):
     monkeypatch.setattr(PostgresCompiler, 'encoding_map', no_psycopg2_map)
-    with pytest.raises(LookupError):
-        PostgresCompiler().python_encoding(FakeDjangoConnection(FakePsycopg3Connection('not-a-codec')))
+    connection = FakeDjangoConnection(FakePsycopg3Connection(client_encoding))
+    with pytest.raises(LookupError) as excinfo:
+        PostgresCompiler().python_encoding(connection)
+    assert client_encoding in str(excinfo.value)
+    assert excinfo.value.__suppress_context__
+
+
+@pytest.mark.parametrize('client_encoding', sorted(NO_PYTHON_CODEC))
+def test_postgres_psycopg3_compile_sql_no_python_codec_raises_lookup_error(fake_psycopg, client_encoding):
+    # compile_sql runs before python_encoding in executable_query, so it must raise LookupError too
+    connection = FakeDjangoConnection(FakePsycopg3Connection(client_encoding))
+    with pytest.raises(LookupError) as excinfo:
+        PostgresCompiler().compile_sql(connection, 'SELECT %s', ('a',))
+    assert client_encoding in str(excinfo.value)
+    assert FakeClientCursor.built_on == []
 
 
 def test_postgres_python_encoding_unknown_name_has_no_chained_key_error(fake_psycopg2):
