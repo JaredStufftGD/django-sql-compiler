@@ -1,8 +1,9 @@
 # Pinned executable_query output, captured from real runs with:
-#   Django 6.1.2, psycopg2 2.9.13, PostgreSQL: PostgreSQL 18.6
+#   Django 6.1.2, psycopg2 2.9.13, psycopg 3.3.6, PostgreSQL: PostgreSQL 18.6
 #   mysqlclient (2, 3, 0, 'final', 0), MySQL: 8.4.13
-# These strings are psycopg2/mysqlclient output. Under psycopg 3 the Postgres cases
-# xfail (GRO-14) before the comparison, so re-capture when GRO-14 is fixed.
+# EXPECTED['postgres'] is psycopg2 output. POSTGRES_PSYCOPG3_OVERRIDES holds the psycopg 3 strings that
+# differ from it (identical under client-side and server-side binding); pinned_sql picks the dict for the
+# driver under test. EXPECTED['mysql'] is mysqlclient output.
 # 'non_ascii', 'non_ascii_cjk', 'non_ascii_emoji' (and MySQL 'non_ascii_euro') hold non-ASCII values, checked by
 # test_non_ascii_param_is_not_garbled, the non-ASCII CASES and the MySQL latin1 test.
 # 'union_one_empty', 'union_none_part' and 'or_empty_subquery' are empty-looking querysets that compiled before GRO-13 was fixed; they were captured from the pre-fix code and must stay byte-identical.
@@ -63,7 +64,11 @@ EXPECTED['mysql'] = {
     'none': MYSQL_SELECT + 'WHERE 0 = 1',
 }
 
-POSTGRES_PSYCOPG3_OVERRIDES = {}
+POSTGRES_PSYCOPG3_OVERRIDES = {
+    'backslash': POSTGRES_SELECT + 'WHERE "sqlcompiler_thing"."name" =  E\'back\\\\slash\'',
+    'percent_literal_param': POSTGRES_SELECT + 'WHERE "sqlcompiler_thing"."name"::text LIKE  E\'%\\\\%%\'',
+    'datetime': POSTGRES_SELECT + 'WHERE "sqlcompiler_thing"."ts" = \'2024-01-02 03:04:05+00:00\'::timestamptz',
+}
 EXPECTED['postgres_psycopg3'] = {**EXPECTED['postgres'], **POSTGRES_PSYCOPG3_OVERRIDES}
 
 
