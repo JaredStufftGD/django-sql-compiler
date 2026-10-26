@@ -38,6 +38,9 @@ def zero_row_query(query):
     compiler does not turn an empty HAVING into an always-false predicate. Ordering is cleared, because
     zero rows have no order and an ORDER BY on an empty subquery would raise EmptyResultSet again.
     Combined queries are handled part by part. The original query is not changed.
+
+    Known limitation: an aggregate Django doesn't recognize (RawSQL or extra(select=...) such as COUNT(*))
+    gets no GROUP BY, so the zero-row SQL is an aggregate without GROUP BY and returns one row.
     """
 
     clone = query.clone()
@@ -55,7 +58,8 @@ def query_sql_and_params(query, using):
     Compiles the query for the alias and returns the parameterized SQL and its params.
 
     A query Django itself evaluates as empty is compiled again as a zero-row query with the same columns,
-    and every query that compiles today gets exactly the same SQL and params.
+    and every query that compiles today gets exactly the same SQL and params. See zero_row_query for the
+    one known case where the zero-row SQL still returns a row.
     """
 
     try:

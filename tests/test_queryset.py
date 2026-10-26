@@ -6,6 +6,7 @@ from django.conf import settings
 from django.core.exceptions import EmptyResultSet
 from django.db import connections, models
 from django.db.models import Count, Exists, Q, Subquery, Window
+from django.db.models.expressions import RawSQL
 from django.db.models.functions import RowNumber
 from django.db.utils import ConnectionHandler
 from django.test import override_settings
@@ -200,6 +201,26 @@ def test_empty_shapes_keep_the_counterpart_select_list(shape_id):
     assert sql.split(' FROM ')[0] == counterpart_sql.split(' FROM ')[0]
     # GROUP BY is what keeps an aggregate query (empty_having) at zero rows
     assert group_by_clause(sql) == group_by_clause(counterpart_sql)
+
+
+# KNOWN LIMITATION (GRO-13 review WR-01), pinned on purpose: Django doesn't know a raw SQL or extra() select
+# is an aggregate, so it emits no GROUP BY. The zero-row SQL is an aggregate without GROUP BY, which returns
+# one row (COUNT(*) = 0) on a real database, while Django itself evaluates the queryset to zero rows.
+# If this starts failing, the limitation may have been fixed: update the docstring and CHANGELOG with it.
+@pytest.mark.parametrize('factory, expected_sql', [
+    pytest.param(
+        lambda: Widget.objects.annotate(c=RawSQL('COUNT(*)', [])).filter(id__in=[]).values('c'),
+        'SELECT (COUNT(*)) AS "c" FROM "tests_widget" WHERE 0 = 1',
+        id='raw_sql'),
+    pytest.param(
+        lambda: Widget.objects.extra(select={'c': 'COUNT(*)'}).filter(id__in=[]).values('c'),
+        'SELECT (COUNT(*)) AS "c" FROM "tests_widget" WHERE 0 = 1',
+        id='extra'),
+])
+def test_known_limitation_raw_aggregate_without_group_by_returns_one_row(factory, expected_sql):
+    sql, params = sql_compiler.utils.query_sql_and_params(factory().query, 'default')
+    assert sql == expected_sql
+    assert 'GROUP BY' not in sql
 
 
 @pytest.mark.parametrize('factory', [
