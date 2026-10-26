@@ -85,7 +85,7 @@ jobs:
       - name: Run the no-DB suite
         run: uv run --locked --with "$DJANGO_SPEC" pytest
 
-  # Allowed to fail: never add this job to ci-gate needs. Failures (including strict-xfail XPASS)
+  # Allowed to fail: never add this job to ci-gate needs. Failures
   # are informational. Self-contained so it can move unchanged into its own workflow file.
   django-dev:
     name: Django dev (main) / 3.15
@@ -193,7 +193,7 @@ jobs:
           grep -qE 'collation_server[[:space:]]+utf8mb4_0900_ai_ci$' mysql-vars.txt
       - name: Run DB-backed tests
         run: uv run --locked --exact $UV_GROUPS pytest 2>&1 | tee pytest.log
-      - name: Check skips match the documented outcomes
+      - name: Check skips and xfails match the documented outcomes
         run: |
           bad=$(grep -E '^SKIPPED' pytest.log | grep -vE "^SKIPPED \[[0-9]+\] [^ ]+: (${ALLOWED_SKIPS})" || true)
           if [ -n "$bad" ]; then
@@ -211,6 +211,10 @@ jobs:
             grep -qE "$ssb_header" pytest.log || { echo "server_side_binding=True not found in the pytest header"; exit 1; }
           elif grep -qE "$ssb_header" pytest.log; then
             echo "server_side_binding=True found in the pytest header but this job does not use server-side binding"
+            exit 1
+          fi
+          if grep -E '^(XFAIL|XPASS)' pytest.log || grep -E '^=+ .*[0-9]+ (xfailed|xpassed)' pytest.log; then
+            echo "Every DB job must report 0 xfailed and 0 xpassed"
             exit 1
           fi
       - name: Show database logs
