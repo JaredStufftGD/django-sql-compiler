@@ -5,7 +5,7 @@ import pytest
 from django.conf import settings
 from django.core.exceptions import EmptyResultSet
 from django.db import connections, models
-from django.db.models import Count, Exists, Q, Subquery, Window
+from django.db.models import Count, Exists, Q, Subquery, Value, Window
 from django.db.models.expressions import RawSQL
 from django.db.models.functions import RowNumber
 from django.db.utils import ConnectionHandler
@@ -148,6 +148,8 @@ EMPTY_SHAPES = [
     ('subquery_none', lambda: Widget.objects.filter(pk__in=Widget.objects.none()), lambda: Widget.objects.filter(pk__in=Widget.objects.all())),
     ('empty_having', lambda: Widget.objects.annotate(c=Count('id')).filter(c__in=[]), lambda: Widget.objects.annotate(c=Count('id'))),
     ('order_by_empty_subquery', lambda: Widget.objects.order_by(Subquery(Widget.objects.none().values('name')[:1])), lambda: Widget.objects.all()),
+    ('aggregate_without_group_by', lambda: Widget.objects.values(x=Value(1)).annotate(c=Count('id')).filter(c__in=[]), lambda: Widget.objects.values(x=Value(1)).annotate(c=Count('id'))),
+    ('distinct_ordered', lambda: Widget.objects.filter(id__in=[]).values('name').order_by('id').distinct(), lambda: Widget.objects.values('name').order_by('id').distinct()),
 ]
 EMPTY_SHAPE_IDS = [shape[0] for shape in EMPTY_SHAPES]
 # union columns are compared on live DBs in tests/db/test_empty.py
@@ -190,7 +192,9 @@ def test_empty_shapes_compile_without_empty_result_set(shape_id):
 def group_by_clause(sql):
     if ' GROUP BY ' not in sql:
         return None
-    return sql.split(' GROUP BY ', 1)[1].split(' HAVING ')[0].split(' ORDER BY ')[0]
+    clause = sql.split(' GROUP BY ', 1)[1].split(' HAVING ')[0].split(' ORDER BY ')[0]
+    # SQLite before 3.39 forces 'GROUP BY TRUE' when a query has HAVING but no grouping
+    return None if clause == 'TRUE' else clause
 
 
 @pytest.mark.parametrize('shape_id', SELECT_LIST_SHAPE_IDS)
@@ -203,9 +207,30 @@ def test_empty_shapes_keep_the_counterpart_select_list(shape_id):
     assert group_by_clause(sql) == group_by_clause(counterpart_sql)
 
 
-# KNOWN LIMITATION (GRO-13 review WR-01), pinned on purpose: Django doesn't know a raw SQL or extra() select
-# is an aggregate, so it emits no GROUP BY. The zero-row SQL is an aggregate without GROUP BY, which returns
-# one row (COUNT(*) = 0) on a real database, while Django itself evaluates the queryset to zero rows.
+def test_aggregate_without_group_by_gets_an_always_false_having():
+    _, empty_factory, _ = empty_shape('aggregate_without_group_by')
+    sql, params = sql_compiler.utils.query_sql_and_params(empty_factory().query, 'default')
+    # in/endswith, not equality: SQLite before 3.39 inserts GROUP BY TRUE before HAVING
+    assert 'WHERE 0 = 1' in sql
+    assert sql.endswith('HAVING 0 = 1')
+    assert tuple(params) == (1,)
+    assert connections['default'].connection is None
+
+
+def test_empty_having_and_distinct_ordered_shapes_keep_their_clauses():
+    _, empty_factory, _ = empty_shape('empty_having')
+    sql, _ = sql_compiler.utils.query_sql_and_params(empty_factory().query, 'default')
+    assert ' HAVING 0 = 1' in sql
+    _, empty_factory, _ = empty_shape('distinct_ordered')
+    sql, _ = sql_compiler.utils.query_sql_and_params(empty_factory().query, 'default')
+    assert ' ORDER BY ' in sql
+
+
+# KNOWN LIMITATION (GRO-13 review WR-01), pinned on purpose: the zero-row SQL adds an always-false HAVING
+# only when Django recognizes an aggregate (the query has a GROUP BY state). A raw SQL aggregate (RawSQL or
+# extra(select=...), such as COUNT(*)) in a queryset with no aggregate Django recognizes gets neither GROUP BY
+# nor HAVING, so it returns one row (COUNT(*) = 0) on a real database, while Django evaluates the queryset to
+# zero rows. HAVING can't be added there, because non-aggregate raw selects would fail on PostgreSQL.
 # If this starts failing, the limitation may have been fixed: update the docstring and CHANGELOG with it.
 @pytest.mark.parametrize('factory, expected_sql', [
     pytest.param(
@@ -226,6 +251,7 @@ def test_known_limitation_raw_aggregate_without_group_by_returns_one_row(factory
 @pytest.mark.parametrize('factory', [
     pytest.param(lambda: Widget.objects.order_by(Subquery(Widget.objects.none().values('name')[:1])), id='subquery'),
     pytest.param(lambda: Widget.objects.order_by(Exists(Widget.objects.none())), id='exists'),
+    pytest.param(lambda: Widget.objects.filter(id__in=[]).order_by(Subquery(Widget.objects.none().values('name')[:1])).distinct(), id='distinct_subquery'),
 ])
 def test_ordering_by_an_empty_subquery_compiles(factory):
     # Ordering by Exists(<empty>) raises EmptyResultSet only on Django 4.2; later lines compile it as is,
