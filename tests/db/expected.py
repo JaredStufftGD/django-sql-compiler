@@ -62,3 +62,15 @@ EXPECTED['mysql'] = {
     'or_empty_subquery': MYSQL_SELECT + "WHERE `sqlcompiler_thing`.`name` = 'plain'",
     'none': MYSQL_SELECT + 'WHERE 0 = 1',
 }
+
+POSTGRES_PSYCOPG3_OVERRIDES = {}
+EXPECTED['postgres_psycopg3'] = {**EXPECTED['postgres'], **POSTGRES_PSYCOPG3_OVERRIDES}
+
+
+def pinned_sql(vendor, case_id):
+    # Imported here because dbconfig.STATE is only filled in by pytest_configure
+    from tests import dbconfig
+
+    if vendor == 'postgres' and dbconfig.STATE['postgres']['driver'] == 'psycopg':
+        vendor = 'postgres_psycopg3'
+    return EXPECTED[vendor][case_id]

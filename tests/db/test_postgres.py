@@ -2,20 +2,9 @@ import pytest
 
 from sql_compiler import utils
 from sql_compiler.compilers import PostgresCompiler
-from tests import dbconfig
 
 from .cases import CASE_IDS, run_case
 
-_gro14 = dbconfig.gro14_xfail()
-
-
-def gro14_only(func):
-    if _gro14 is None:
-        return func
-    return _gro14(func)
-
-
-@gro14_only
 @pytest.mark.parametrize('case_id', CASE_IDS)
 def test_postgres_case(postgres_db, things, case_id):
     run_case('postgres', case_id)

@@ -46,22 +46,6 @@ def gro10_ready():
     )
 
 
-def gro14_xfail():
-    if not psycopg3_is_default():
-        return None
-    if STATE['server_side_binding']:
-        return pytest.mark.xfail(
-            strict=True,
-            raises=AttributeError,
-            reason='GRO-14: with server_side_binding=True Django uses psycopg 3 server-binding cursors, which have no mogrify',
-        )
-    return pytest.mark.xfail(
-        strict=True,
-        raises=TypeError,
-        reason="GRO-14: psycopg 3's client-side mogrify returns str, but compile_sql must return bytes, so executable_query raises TypeError",
-    )
-
-
 def parse_url(env_name, value, schemes):
     # Never echo the value: it may carry a password
     try:

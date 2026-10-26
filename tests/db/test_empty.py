@@ -4,17 +4,8 @@ from django.db.models import Count, Q, Value
 
 from tests import dbconfig
 
-from .expected import EXPECTED
+from .expected import EXPECTED, pinned_sql
 from .models import Thing
-
-_gro14 = dbconfig.gro14_xfail()
-
-
-def gro14_only(func):
-    if _gro14 is None:
-        return func
-    return _gro14(func)
-
 
 # These empty-looking shapes compiled before GRO-13 was fixed, so their SQL must stay byte-identical (list B).
 UNCHANGED_CASES = [
@@ -25,12 +16,11 @@ UNCHANGED_CASES = [
 UNCHANGED_IDS = [case_id for case_id, _ in UNCHANGED_CASES]
 
 
-@gro14_only
 @pytest.mark.parametrize('case_id', UNCHANGED_IDS)
 def test_empty_part_shapes_are_unchanged(db_under_test, things, case_id):
     qs = dict(UNCHANGED_CASES)[case_id]()
     compiled = qs.executable_query
-    assert compiled == EXPECTED[db_under_test][case_id]
+    assert compiled == pinned_sql(db_under_test, case_id)
     with connection.cursor() as cursor:
         cursor.execute(compiled)
         got = {row[0] for row in cursor.fetchall()}
@@ -64,7 +54,6 @@ def counterpart_columns(cursor, counterpart):
     return [col[0] for col in cursor.description], rows
 
 
-@gro14_only
 @pytest.mark.parametrize('case_id', EMPTY_IDS)
 def test_empty_queryset_compiles_to_zero_rows(db_under_test, things, case_id):
     factories = {key: (empty, counterpart) for key, empty, counterpart in EMPTY_CASES}
@@ -81,16 +70,14 @@ def test_empty_queryset_compiles_to_zero_rows(db_under_test, things, case_id):
     assert len(rows) > 0
 
 
-@gro14_only
 def test_none_queryset_compiles(db_under_test, things):
     compiled = Thing.objects.none().executable_query
-    assert compiled == EXPECTED[db_under_test]['none']
+    assert compiled == pinned_sql(db_under_test, 'none')
     with connection.cursor() as cursor:
         cursor.execute(compiled)
         assert list(cursor.fetchall()) == []
 
 
-@gro14_only
 def test_empty_single_column_sql_works_as_in_subquery(db_under_test, things):
     inner = Thing.objects.filter(id__in=[]).values('pk').executable_query
     sql = 'SELECT id FROM sqlcompiler_thing WHERE id IN ({})'.format(inner)
@@ -99,8 +86,7 @@ def test_empty_single_column_sql_works_as_in_subquery(db_under_test, things):
         assert list(cursor.fetchall()) == []
 
 
-# Under psycopg 3 this skips with the GRO-10 reason instead of XFAILing as GRO-14, because the
-# 'other' alias only exists in the psycopg2 combined run.
+# Skips outside the combined psycopg2 + MySQL run (including under psycopg 3), because the 'other' alias exists only there.
 gro10 = pytest.mark.skipif(not dbconfig.gro10_ready(), reason='GRO-10 pin needs default=PostgreSQL via psycopg2 and MySQL as alias other; run uv run --exact --group pg2 --group mysql pytest')
 
 
