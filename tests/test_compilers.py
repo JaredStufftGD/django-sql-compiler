@@ -53,6 +53,13 @@ def test_registry_maps_each_compiler_to_its_backend_name():
         assert compiler_map[c.backend_name] is c
 
 
+def test_registry_maps_every_postgres_engine():
+    # postgresql_psycopg2 stays mapped even though Django 4.2+ can't load that backend
+    assert compiler_map['django.db.backends.postgresql'] is PostgresCompiler
+    assert compiler_map['django_tenants.postgresql_backend'] is PostgresTenantsCompiler
+    assert compiler_map['django.db.backends.postgresql_psycopg2'] is Psycopg2Compiler
+
+
 def test_mogrify_tuple():
     cursor = StubCursor()
     result = MySQLCompiler().mogrify(cursor, 'SELECT %s, %s', ('a', 1))
@@ -217,7 +224,6 @@ def test_postgres_and_tenants_compilers_give_the_same_psycopg3_output(fake_psyco
     tenants = PostgresTenantsCompiler().compile_sql(connection, 'SELECT %s', ('café',))
     assert postgres == tenants == "SELECT 'café'".encode(encoding)
     assert PostgresCompiler().python_encoding(connection) == PostgresTenantsCompiler().python_encoding(connection)
-    assert compiler_map['django.db.backends.postgresql_psycopg2'] is Psycopg2Compiler
 
 
 def test_postgres_psycopg2_compile_sql_uses_the_django_cursor_mogrify(fake_psycopg2):
