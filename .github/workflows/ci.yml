@@ -85,8 +85,8 @@ jobs:
       - name: Run the no-DB suite
         run: uv run --locked --with "$DJANGO_SPEC" pytest
 
-  # Allowed to fail: never add this job to ci-gate needs. Failures
-  # are informational. Self-contained so it can move unchanged into its own workflow file.
+  # Allowed to fail: never add this job to ci-gate needs. Failures are informational.
+  # Self-contained so it can move unchanged into its own workflow file.
   django-dev:
     name: Django dev (main) / 3.15
     runs-on: ubuntu-24.04
