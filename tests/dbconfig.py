@@ -34,31 +34,11 @@ def mysql_driver():
     return None
 
 
-def psycopg3_is_default():
-    return STATE['default'] == 'postgres' and STATE['postgres']['driver'] == 'psycopg'
-
-
 def gro10_ready():
     return (
         STATE['default'] == 'postgres'
         and STATE['postgres']['driver'] == 'psycopg2'
         and STATE['mysql']['alias'] == 'other'
-    )
-
-
-def gro14_xfail():
-    if not psycopg3_is_default():
-        return None
-    if STATE['server_side_binding']:
-        return pytest.mark.xfail(
-            strict=True,
-            raises=AttributeError,
-            reason='GRO-14: with server_side_binding=True Django uses psycopg 3 server-binding cursors, which have no mogrify',
-        )
-    return pytest.mark.xfail(
-        strict=True,
-        raises=TypeError,
-        reason="GRO-14: psycopg 3's client-side mogrify returns str, but compile_sql must return bytes, so executable_query raises TypeError",
     )
 
 

@@ -5,7 +5,7 @@ from decimal import Decimal
 from django.db import connection
 from django.db.models import F
 
-from .expected import EXPECTED
+from .expected import pinned_sql
 from .models import Thing
 
 UTC = datetime.timezone.utc
@@ -72,7 +72,7 @@ def run_case(vendor, case_id):
             assert len(params) > 0
 
     compiled = qs.executable_query
-    assert compiled == EXPECTED[vendor][case_id]
+    assert compiled == pinned_sql(vendor, case_id)
 
     # No params, so the driver does no % interpolation of the compiled SQL
     with connection.cursor() as cursor:

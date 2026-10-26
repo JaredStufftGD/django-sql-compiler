@@ -5,22 +5,12 @@ from django.test import override_settings
 from tests import dbconfig
 
 from .cases import ROWS
-from .expected import EXPECTED
+from .expected import EXPECTED, pinned_sql
 from .models import Thing
 
-_gro14 = dbconfig.gro14_xfail()
-
-
-def gro14_only(func):
-    if _gro14 is None:
-        return func
-    return _gro14(func)
-
-
-@gro14_only
 def test_non_ascii_param_is_not_garbled(db_under_test, things):
     qs = Thing.objects.filter(name='café')
-    assert qs.executable_query == EXPECTED[db_under_test]['non_ascii']
+    assert qs.executable_query == pinned_sql(db_under_test, 'non_ascii')
 
     with connection.cursor() as cursor:
         cursor.execute(qs.executable_query)
