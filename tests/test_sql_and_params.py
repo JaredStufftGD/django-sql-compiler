@@ -1,8 +1,10 @@
 import inspect
 
+import django.db.models.sql.query
 import pytest
 from django.db import connections
 from django.db.models import QuerySet
+from django.test import override_settings
 
 import sql_compiler
 import sql_compiler.utils
@@ -11,6 +13,7 @@ from sql_compiler.queryset import SQLCompilerQuerySet
 from sql_compiler import utils
 
 from tests import dbconfig
+from tests.db import shapes
 from tests.db.models import PlainThing, Thing
 
 REJECTED = {
@@ -27,6 +30,13 @@ QUERYSETS = {
     'values': lambda: Thing.objects.values('name'),
     'union': lambda: Thing.objects.filter(n__lte=3).union(Thing.objects.filter(n__gte=2)),
 }
+
+
+@pytest.fixture(autouse=True)
+def default_never_connects():
+    yield
+    if dbconfig.STATE['default'] == 'sqlite':
+        assert connections['default'].connection is None
 
 
 def test_sql_and_params_is_exported():
@@ -89,3 +99,61 @@ def test_method_is_not_cached():
     qs = Thing.objects.filter(n__lte=3)
     qs.sql_and_params()
     assert 'sql_and_params' not in qs.__dict__
+
+
+SHAPE_BY_ID = {shape[0]: shape for shape in shapes.SHAPES}
+EMPTY_BY_ID = {shape[0]: shape for shape in shapes.EMPTY_SHAPES}
+
+
+class ThingReadsTo:
+    def __init__(self, alias):
+        self.alias = alias
+
+    def db_for_read(self, model, **hints):
+        return self.alias if model._meta.concrete_model is Thing else None
+
+
+@pytest.mark.parametrize('shape_id', shapes.SHAPE_IDS)
+def test_shape_pair_runs_on_sqlite(things_sqlite, shape_id):
+    _, factory, kind, ordered = SHAPE_BY_ID[shape_id]
+    shapes.require_features(things_sqlite, shape_id)
+    qs = factory(Thing.objects.using(things_sqlite))
+    assert qs.db == things_sqlite
+    pair = sql_and_params(qs)
+    assert qs.sql_and_params() == pair
+    shapes.assert_pair_matches_queryset(qs, things_sqlite, pair, kind, ordered)
+
+
+@pytest.mark.parametrize('shape_id', shapes.RAW_SHAPE_IDS)
+def test_raw_returns_the_querysets_instances_on_sqlite(things_sqlite, shape_id):
+    _, factory, _, ordered = SHAPE_BY_ID[shape_id]
+    qs = factory(Thing.objects.using(things_sqlite))
+    sql, params = sql_and_params(qs)
+    raw = qs.raw(sql, params)
+    assert raw.db == things_sqlite
+    objs = list(raw)
+    assert objs
+    assert all(isinstance(o, Thing) for o in objs)
+    got = [o.pk for o in objs]
+    want = [o.pk for o in qs]
+    if ordered:
+        assert got == want
+    else:
+        assert set(got) == set(want)
+
+
+@pytest.mark.parametrize('shape_id', shapes.EMPTY_IDS)
+def test_empty_pair_returns_zero_rows_on_sqlite(things_sqlite, shape_id):
+    _, empty_factory, counterpart_factory = EMPTY_BY_ID[shape_id]
+    base = Thing.objects.using(things_sqlite)
+    empty_qs = empty_factory(base)
+    assert list(empty_qs) == []
+    shapes.assert_empty_pair(
+        things_sqlite, sql_and_params(empty_qs), sql_and_params(counterpart_factory(base))
+    )
+
+
+def test_plain_manager_queryset_runs_on_sqlite(things_sqlite):
+    qs = PlainThing.objects.using(things_sqlite).filter(n__lte=3)
+    assert type(qs) is QuerySet
+    shapes.assert_pair_matches_queryset(qs, things_sqlite, sql_and_params(qs), 'instances', False)
