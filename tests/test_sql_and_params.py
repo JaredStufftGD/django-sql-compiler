@@ -157,3 +157,38 @@ def test_plain_manager_queryset_runs_on_sqlite(things_sqlite):
     qs = PlainThing.objects.using(things_sqlite).filter(n__lte=3)
     assert type(qs) is QuerySet
     shapes.assert_pair_matches_queryset(qs, things_sqlite, sql_and_params(qs), 'instances', False)
+
+
+def test_router_selected_alias_runs_on_sqlite(things_sqlite):
+    with override_settings(DATABASE_ROUTERS=[ThingReadsTo(things_sqlite)]):
+        qs = Thing.objects.filter(n__lte=3)
+        assert qs.db == things_sqlite
+        pair = sql_and_params(qs)
+        assert qs.sql_and_params() == pair
+        shapes.assert_pair_matches_queryset(qs, things_sqlite, pair, 'instances', False)
+
+
+def test_router_change_between_calls_recompiles(things_sqlite, monkeypatch):
+    qs = Thing.objects.filter(name__contains='%')
+    original = django.db.models.sql.query.Query.get_compiler
+    seen = []
+
+    def spy(self, *args, **kwargs):
+        seen.append(kwargs.get('using', args[0] if args else None))
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(django.db.models.sql.query.Query, 'get_compiler', spy)
+    with override_settings(DATABASE_ROUTERS=[ThingReadsTo(things_sqlite)]):
+        routed = sql_and_params(qs)
+        routed_method = qs.sql_and_params()
+    with override_settings(DATABASE_ROUTERS=[]):
+        unrouted = sql_and_params(qs)
+        unrouted_method = qs.sql_and_params()
+    monkeypatch.undo()
+    assert seen == [things_sqlite, things_sqlite, 'default', 'default']
+    assert routed == routed_method
+    assert unrouted == unrouted_method
+    assert routed[0] == qs.query.get_compiler(using=things_sqlite).as_sql()[0]
+    assert unrouted[0] == qs.query.get_compiler(using='default').as_sql()[0]
+    if dbconfig.STATE['default'] != 'sqlite':
+        assert routed[0] != unrouted[0]
