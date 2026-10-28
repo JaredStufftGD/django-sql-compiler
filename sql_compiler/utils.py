@@ -1,4 +1,5 @@
 from django.core.exceptions import EmptyResultSet
+from django.db.models import QuerySet
 from django.db.models.sql.where import NothingNode, WhereNode
 
 from .compilers import SUPPORTED_BACKENDS
@@ -100,3 +101,25 @@ def query_sql_and_params(query, using):
         pass
     # An ORDER BY on an empty subquery (CR-01) still raises; zero rows have no order
     return zero_row_query(query, clear_ordering=True).get_compiler(using=using, elide_empty=False).as_sql()
+
+
+def sql_and_params(queryset):
+
+    """
+    Returns the parameterized SQL (a str with Django's %s placeholders) and its params (a tuple)
+    for the queryset's own database alias (`queryset.db`, from `.using()` or a database router).
+    The alias is read on every call and nothing is cached. It works on every Django backend.
+
+    The pair is meant for `connections[queryset.db].cursor().execute(sql, params)` (Django's cursor)
+    and, for a queryset of the model's own instances, `raw(sql, params)` on that alias. It is not
+    meant for the raw driver cursor.
+
+    A queryset Django evaluates as empty returns SQL that matches no rows and has the same columns.
+    A raw-SQL aggregate can still return one row; see zero_row_query for that known limitation.
+    """
+
+    if not isinstance(queryset, QuerySet):
+        raise TypeError('sql_and_params needs a QuerySet, got {}'.format(type(queryset).__name__))
+    alias = queryset.db
+    sql, params = query_sql_and_params(queryset.query, alias)
+    return sql, tuple(params)

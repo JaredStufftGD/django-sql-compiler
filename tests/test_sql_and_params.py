@@ -6,6 +6,7 @@ from django.db.models import QuerySet
 
 import sql_compiler
 import sql_compiler.utils
+from sql_compiler import sql_and_params
 from sql_compiler.queryset import SQLCompilerQuerySet
 from sql_compiler import utils
 
@@ -29,7 +30,6 @@ QUERYSETS = {
 
 
 def test_sql_and_params_is_exported():
-    from sql_compiler import sql_and_params
     assert 'sql_and_params' in sql_compiler.__all__
     assert sql_compiler.sql_and_params is sql_compiler.utils.sql_and_params
     assert sql_and_params is sql_compiler.utils.sql_and_params
@@ -37,7 +37,6 @@ def test_sql_and_params_is_exported():
 
 @pytest.mark.parametrize('case_id', list(REJECTED))
 def test_rejects_non_querysets(case_id):
-    from sql_compiler import sql_and_params
     factory, name = REJECTED[case_id]
     with pytest.raises(TypeError) as excinfo:
         sql_and_params(factory())
@@ -45,7 +44,6 @@ def test_rejects_non_querysets(case_id):
 
 
 def test_accepts_plain_manager_queryset():
-    from sql_compiler import sql_and_params
     qs = PlainThing.objects.filter(n__lte=3)
     assert type(qs) is QuerySet
     sql, params = qs.query.get_compiler(using=qs.db).as_sql()
@@ -54,13 +52,11 @@ def test_accepts_plain_manager_queryset():
 
 @pytest.mark.parametrize('case_id', list(QUERYSETS))
 def test_method_equals_module_function(case_id):
-    from sql_compiler import sql_and_params
     qs = QUERYSETS[case_id]()
     assert qs.sql_and_params() == sql_and_params(qs)
 
 
 def test_pair_is_str_with_placeholders_and_tuple_params():
-    from sql_compiler import sql_and_params
     sql, params = sql_and_params(Thing.objects.filter(name="it's"))
     assert isinstance(sql, str)
     assert '%s' in sql
@@ -71,14 +67,12 @@ def test_pair_is_str_with_placeholders_and_tuple_params():
 
 @pytest.mark.parametrize('case_id', ['filtered', 'none'])
 def test_pair_matches_the_shared_compile_path(case_id):
-    from sql_compiler import sql_and_params
     qs = QUERYSETS[case_id]()
     sql, params = utils.query_sql_and_params(qs.query, qs.db)
     assert sql_and_params(qs) == (sql, tuple(params))
 
 
 def test_no_backend_gate():
-    from sql_compiler import sql_and_params
     sql, params = sql_and_params(Thing.objects.all())
     assert isinstance(sql, str)
     if dbconfig.STATE['default'] == 'sqlite':
