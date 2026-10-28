@@ -14,6 +14,8 @@ A light-weight module to generate usable SQL from a Django QuerySet.
 
 PostgreSQL connections work with psycopg2 and with psycopg 3 (psycopg >=3.2), including Django's `server_side_binding` option. Other PostgreSQL drivers raise `NotImplementedError`.
 
+The ENGINE list applies to `executable_query`. `sql_and_params` (see SQL and params below) works on every Django backend.
+
 ## About Django SQL Compiler
 The Django ORM is very useful for abstracting away SQL queries from the focus of the developer. This is very useful
 for preventing SQL injection attacks and generating queries programmatically using applied logic in your Django app.
@@ -106,3 +108,23 @@ more_complex_results = MyModel.objects.raw(more_complex_query)
 
 Now, users who are more familiar with SQL rather than the Django ORM can use the ORM for security and conveniently
 generating SQL queries and use SQL for the rest of their transformations.
+
+## SQL and params
+`sql_and_params(queryset)` returns the parameterized SQL (a `str` with Django's `%s` placeholders) and its params (a `tuple`) for any Django queryset. It compiles for the database the queryset runs on (`qs.db`, from `.using()` or your database routers), recompiles on every call, and leaves values in params for the driver to bind.
+
+```python
+from django.db import connections
+from sql_compiler import sql_and_params
+
+qs = MyModel.objects.filter(field_one__lte=10)
+sql, params = sql_and_params(qs)
+with connections[qs.db].cursor() as cursor:
+    cursor.execute('select count(*) from ({}) a'.format(sql), params)
+```
+
+Querysets from `SQLCompilerManager` also have `qs.sql_and_params()`, which returns the same pair. Anything that isn't a QuerySet (a manager, a RawQuerySet) raises `TypeError`.
+
+- The pair is for Django's cursor on that alias (`connections[qs.db].cursor()`), and for `MyModel.objects.raw(sql, params)` on that alias when the queryset selects the model's own instances (no `values()`, `values_list()` or aggregates). The raw driver cursor is not supported (SQLite's, for example, uses `?`).
+- In hand-written SQL around it, keep user input in params and write a literal `%` as `%%`.
+- Empty querysets (`.none()`, `filter(id__in=[])`, an empty HAVING) return SQL that matches no rows with the same columns.
+- Known limitation: an aggregate written as raw SQL (`RawSQL` or `extra(select=...)`, such as `COUNT(*)`) in a queryset with no aggregate Django recognizes has no GROUP BY, so its empty SQL returns one row instead of none.
