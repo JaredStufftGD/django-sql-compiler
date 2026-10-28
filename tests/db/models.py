@@ -17,3 +17,11 @@ class Thing(models.Model):
     class Meta:
         app_label = 'tests'
         db_table = 'sqlcompiler_thing'
+
+
+class PlainThing(Thing):
+    objects = models.Manager()
+
+    class Meta:
+        proxy = True
+        app_label = 'tests'
