@@ -7,7 +7,6 @@ from django.db.models import QuerySet
 from django.test import override_settings
 
 import sql_compiler
-import sql_compiler.utils
 from sql_compiler import sql_and_params
 from sql_compiler.queryset import SQLCompilerQuerySet
 from sql_compiler import utils
@@ -41,8 +40,8 @@ def default_never_connects():
 
 def test_sql_and_params_is_exported():
     assert 'sql_and_params' in sql_compiler.__all__
-    assert sql_compiler.sql_and_params is sql_compiler.utils.sql_and_params
-    assert sql_and_params is sql_compiler.utils.sql_and_params
+    assert sql_compiler.sql_and_params is utils.sql_and_params
+    assert sql_and_params is utils.sql_and_params
 
 
 @pytest.mark.parametrize('case_id', list(REJECTED))
@@ -140,6 +139,7 @@ def test_raw_returns_the_querysets_instances_on_sqlite(things_sqlite, shape_id):
         assert got == want
     else:
         assert set(got) == set(want)
+    assert [o.pk for o in Thing.objects.raw(sql, params, using=things_sqlite)] == got
 
 
 @pytest.mark.parametrize('shape_id', shapes.EMPTY_IDS)
@@ -202,5 +202,6 @@ def test_router_change_between_calls_recompiles(things_sqlite, monkeypatch):
     assert unrouted == unrouted_method
     assert routed[0] == qs.query.get_compiler(using=things_sqlite).as_sql()[0]
     assert unrouted[0] == qs.query.get_compiler(using='default').as_sql()[0]
+    # the no-DB run proves the alias through the get_compiler spy; the DB jobs supply the observable SQL difference
     if dbconfig.STATE['default'] != 'sqlite':
         assert routed[0] != unrouted[0]

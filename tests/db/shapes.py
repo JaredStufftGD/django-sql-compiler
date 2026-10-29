@@ -2,7 +2,7 @@ from collections import Counter
 
 import pytest
 from django.db import connections
-from django.db.models import Count
+from django.db.models import Count, Sum
 
 # (shape_id, factory(base), kind, ordered); base is a manager or queryset already bound to the alias
 SHAPES = [
@@ -10,8 +10,8 @@ SHAPES = [
     ('ordered', lambda base: base.filter(n__isnull=False).order_by('-n', 'pk'), 'instances', True),
     ('values', lambda base: base.filter(n__gte=2).values('id', 'name', 'n').order_by('n', 'pk'), 'values', True),
     ('values_list', lambda base: base.values_list('id', 'name', 'n').order_by('n', 'pk'), 'values', True),
-    ('count_group_by', lambda base: base.values('flag').annotate(c=Count('id')).order_by('flag'), 'count', True),
-    ('annotated', lambda base: base.annotate(c=Count('other')).order_by('pk'), 'annotated', True),
+    ('count_group_by', lambda base: base.values('flag').annotate(c=Count('id'), s=Sum('n')).order_by('flag'), 'count', True),
+    ('annotated', lambda base: base.annotate(s=Sum('n')).order_by('pk'), 'annotated', True),
     ('union', lambda base: base.filter(n__lte=3).union(base.filter(n__gte=2)), 'combined', False),
     (
         'union_ordered',
@@ -60,9 +60,9 @@ def expected_rows(qs, kind):
     if kind == 'values':
         return [tuple(r.values()) if isinstance(r, dict) else tuple(r) for r in qs]
     if kind == 'count':
-        return [d['c'] for d in qs]
+        return [(bool(d['flag']), d['c'], d['s']) for d in qs]
     if kind == 'annotated':
-        return [(obj.pk, obj.c) for obj in qs]
+        return [(obj.pk, obj.s) for obj in qs]
     if kind == 'combined':
         return [(obj.pk, obj.name, obj.n) for obj in qs]
     raise ValueError(kind)
@@ -74,7 +74,7 @@ def cursor_projection(rows, kind):
     if kind == 'values':
         return [tuple(row) for row in rows]
     if kind == 'count':
-        return [row[-1] for row in rows]
+        return [(bool(row[0]), row[1], row[2]) for row in rows]
     if kind == 'annotated':
         return [(row[0], row[-1]) for row in rows]
     if kind == 'combined':
@@ -90,6 +90,8 @@ def assert_pair_matches_queryset(qs, alias, pair, kind, ordered):
     got = cursor_projection(rows, kind)
     want = expected_rows(qs, kind)
     assert len(want) > 0
+    if kind in ('count', 'annotated'):
+        assert len({w[1:] for w in want}) > 1
     if ordered:
         assert got == want
     else:
