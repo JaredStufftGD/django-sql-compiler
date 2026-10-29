@@ -15,7 +15,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
-- `executable_query` no longer raises `EmptyResultSet` for querysets Django evaluates as empty (`.none()`, `filter(id__in=[])`, an empty HAVING clause, a union of empty parts, a subquery on an empty queryset). It returns SQL that has the same columns as the non-empty queryset and matches no rows, so it can be embedded in a CTE, a UNION or an `IN (...)` subquery. SQL for querysets that already compiled is unchanged. Known limitation: an aggregate written as raw SQL (`RawSQL` or `extra(select=...)`, such as `COUNT(*)`) in a queryset with no aggregate Django recognizes has no GROUP BY, so its empty SQL returns one row instead of none. An empty slice such as `qs[5:5]` returns zero-row SQL without its LIMIT/OFFSET (it used to come out as `... WHERE 0 = 1 OFFSET 5`, which SQLite and MySQL reject); other sliced querysets keep their LIMIT/OFFSET.
+- `executable_query` no longer raises `EmptyResultSet` for querysets Django evaluates as empty (`.none()`, `filter(id__in=[])`, an empty slice such as `qs[5:5]`, an empty HAVING clause, a union of empty parts, a subquery on an empty queryset). It returns SQL that has the same columns as the non-empty queryset and matches no rows, so it can be embedded in a CTE, a UNION or an `IN (...)` subquery. SQL for querysets that already compiled is unchanged. Known limitation: an aggregate written as raw SQL (`RawSQL` or `extra(select=...)`, such as `COUNT(*)`) in a queryset with no aggregate Django recognizes has no GROUP BY, so its empty SQL returns one row instead of none. An empty slice's zero-row SQL has no LIMIT/OFFSET; other sliced querysets keep theirs.
 
 ## [0.2.0] - 2026-10-25
 

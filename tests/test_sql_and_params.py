@@ -139,7 +139,11 @@ def test_raw_returns_the_querysets_instances_on_sqlite(things_sqlite, shape_id):
         assert got == want
     else:
         assert set(got) == set(want)
-    assert [o.pk for o in Thing.objects.raw(sql, params, using=things_sqlite)] == got
+    using_got = [o.pk for o in Thing.objects.raw(sql, params, using=things_sqlite)]
+    if ordered:
+        assert using_got == want
+    else:
+        assert set(using_got) == set(want)
 
 
 @pytest.mark.parametrize('shape_id', shapes.EMPTY_IDS)
