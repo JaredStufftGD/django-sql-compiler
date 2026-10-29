@@ -56,7 +56,8 @@ def zero_row_query(query, clear_ordering=False):
     (any aggregate it recognizes, through annotate, alias or values) an always-false predicate is added
     that Django moves to HAVING, because an aggregate without GROUP BY returns one row even when WHERE
     matches nothing. Ordering is kept, so a DISTINCT select list keeps the ORDER BY columns Django adds
-    to it, unless clear_ordering is set. Combined queries are handled part by part. The original query is
+    to it, unless clear_ordering is set. An empty slice (qs[n:n]) loses its LIMIT/OFFSET because it would
+    otherwise emit OFFSET without LIMIT; other slices are kept. Combined queries are handled part by part. The original query is
     not changed.
 
     When ordering must be cleared (an ORDER BY on an empty subquery raises EmptyResultSet again), an ORDER BY
@@ -67,6 +68,9 @@ def zero_row_query(query, clear_ordering=False):
     """
 
     clone = query.clone()
+    if clone.high_mark is not None and clone.low_mark == clone.high_mark:
+        # an empty slice would otherwise emit OFFSET without LIMIT, which SQLite and MySQL reject
+        clone.clear_limits()
     if clear_ordering:
         clone.clear_ordering(force=True)
     if clone.combined_queries:
