@@ -124,7 +124,7 @@ with connections[qs.db].cursor() as cursor:
 
 Querysets from `SQLCompilerManager` also have `qs.sql_and_params()`, which returns the same pair. Anything that isn't a QuerySet (a manager, a RawQuerySet) raises `TypeError`.
 
-- The pair is for Django's cursor on that alias (`connections[qs.db].cursor()`), and for `MyModel.objects.raw(sql, params)` on that alias when the queryset selects the model's own instances (no `values()`, `values_list()` or aggregates). The raw driver cursor is not supported (SQLite's, for example, uses `?`).
+- The pair is for Django's cursor on that alias (`connections[qs.db].cursor()`), and for `qs.raw(sql, params)` (or `MyModel.objects.raw(sql, params, using=qs.db)`), which runs on that alias, when the queryset selects the model's own instances (no `values()`, `values_list()` or aggregates). `MyModel.objects.raw(sql, params)` without `using=` runs on the router's or default alias, not `qs.db`. The raw driver cursor is not supported (SQLite's, for example, uses `?`).
 - In hand-written SQL around it, keep user input in params and write a literal `%` as `%%`.
-- Empty querysets (`.none()`, `filter(id__in=[])`, an empty HAVING) return SQL that matches no rows with the same columns.
+- Empty querysets (`.none()`, `filter(id__in=[])`, an empty HAVING, an empty slice such as `qs[5:5]`) return SQL that matches no rows with the same columns.
 - Known limitation: an aggregate written as raw SQL (`RawSQL` or `extra(select=...)`, such as `COUNT(*)`) in a queryset with no aggregate Django recognizes has no GROUP BY, so its empty SQL returns one row instead of none.
