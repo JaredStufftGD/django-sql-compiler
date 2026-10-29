@@ -153,6 +153,18 @@ def test_empty_pair_returns_zero_rows_on_sqlite(things_sqlite, shape_id):
     )
 
 
+def test_empty_slice_drops_its_limits_on_sqlite(things_sqlite):
+    base = Thing.objects.using(things_sqlite)
+    sliced = sql_and_params(base.all()[5:5])
+    assert 'OFFSET' not in sliced[0]
+    assert 'LIMIT' not in sliced[0]
+    assert '0 = 1' in sliced[0]
+    kept = sql_and_params(base.filter(id__in=[])[2:5])
+    assert kept[0].endswith('LIMIT 3 OFFSET 2')
+    assert shapes.run_pair(things_sqlite, *sliced)[0] == []
+    assert shapes.run_pair(things_sqlite, *kept)[0] == []
+
+
 def test_plain_manager_queryset_runs_on_sqlite(things_sqlite):
     qs = PlainThing.objects.using(things_sqlite).filter(n__lte=3)
     assert type(qs) is QuerySet

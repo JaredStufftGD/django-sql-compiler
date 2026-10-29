@@ -35,6 +35,8 @@ EMPTY_SHAPES = [
         lambda base: base.annotate(c=Count('id')).filter(c__in=[]),
         lambda base: base.annotate(c=Count('id')),
     ),
+    ('empty_slice', lambda base: base.all()[5:5], lambda base: base.all()),
+    ('empty_offset', lambda base: base.filter(id__in=[])[2:5], lambda base: base.all()),
 ]
 EMPTY_IDS = [shape[0] for shape in EMPTY_SHAPES]
 
