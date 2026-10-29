@@ -86,10 +86,7 @@ jobs:
         run: uv run --locked --with "$DJANGO_SPEC" pytest -rA 2>&1 | tee pytest.log
       - name: Check the SQLite sql_and_params tests all passed and nothing xfailed
         run: |
-          if grep -E '^SKIPPED \[[0-9]+\] tests/test_sql_and_params\.py' pytest.log; then
-            echo "SQLite sql_and_params tests must not be skipped"
-            exit 1
-          fi
+          # Runtime skips are reported at the raising line, not this file, so compare PASSED lines with the collected count.
           collected=$(uv run --locked --with "$DJANGO_SPEC" pytest --collect-only -q tests/test_sql_and_params.py | grep -c '^tests/test_sql_and_params\.py::' || true)
           passed=$(grep -cE '^PASSED tests/test_sql_and_params\.py::' pytest.log || true)
           echo "collected $collected, passed $passed"
@@ -209,7 +206,7 @@ jobs:
           grep -qE 'character_set_server[[:space:]]+utf8mb4$' mysql-vars.txt
           grep -qE 'collation_server[[:space:]]+utf8mb4_0900_ai_ci$' mysql-vars.txt
       - name: Run DB-backed tests
-        run: uv run --locked --exact $UV_GROUPS pytest 2>&1 | tee pytest.log
+        run: uv run --locked --exact $UV_GROUPS pytest -rA 2>&1 | tee pytest.log
       - name: Check skips and xfails match the documented outcomes
         run: |
           bad=$(grep -E '^SKIPPED' pytest.log | grep -vE "^SKIPPED \[[0-9]+\] [^ ]+: (${ALLOWED_SKIPS})" || true)
@@ -230,8 +227,12 @@ jobs:
             echo "server_side_binding=True found in the pytest header but this job does not use server-side binding"
             exit 1
           fi
-          if grep -E '^SKIPPED \[[0-9]+\] tests/test_sql_and_params\.py' pytest.log; then
-            echo "SQLite sql_and_params tests must run in every DB job"
+          # Runtime skips are reported at the raising line, not this file, so compare PASSED lines with the collected count.
+          collected=$(uv run --locked --exact $UV_GROUPS pytest --collect-only -q tests/test_sql_and_params.py | grep -c '^tests/test_sql_and_params\.py::' || true)
+          passed=$(grep -cE '^PASSED tests/test_sql_and_params\.py::' pytest.log || true)
+          echo "collected $collected, passed $passed"
+          if ! { [ "$collected" -gt 0 ] && [ "$passed" -eq "$collected" ]; }; then
+            echo "SQLite sql_and_params tests must all pass in every DB job: collected $collected, passed $passed"
             exit 1
           fi
           if grep -E '^(XFAIL|XPASS)' pytest.log || grep -E '^=+ .*[0-9]+ (xfailed|xpassed)' pytest.log; then
