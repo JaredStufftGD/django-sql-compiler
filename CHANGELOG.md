@@ -6,6 +6,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- `compose(template, **slots)` (and its result type `ComposeResult`) embeds querysets, earlier `compose()` results and plain values in a hand-written SQL template with `%(name)s` slots and returns `(sql, params)` for the querysets' shared alias (`.alias`), with params in placeholder order and repeated for reused slots, values always bound as params, `%%` kept as a literal `%`, on every Django backend; mixed aliases, missing or unused slots, bad `%` forms, a template with no queryset, and Manager, RawQuerySet, Query, expression, Q or tuple slots raise `ValueError` or `TypeError`.
 - `sql_and_params(queryset)` and `SQLCompilerQuerySet.sql_and_params()` return a queryset's parameterized SQL and params (a tuple) compiled for the queryset's own database alias, on every Django backend, for executing through Django's cursor or `raw()` on that alias. Empty querysets return zero-row SQL with the same columns. Anything that isn't a QuerySet raises TypeError.
 - psycopg 3 support (psycopg >=3.2) for the PostgreSQL ENGINE strings `django.db.backends.postgresql` and `django_tenants.postgresql_backend`, with Django's default client-side binding and with `OPTIONS={'server_side_binding': True}`. `executable_query` used to raise TypeError or AttributeError under psycopg 3. Values are escaped by psycopg 3 itself, so some literals differ from psycopg2's (for example strings with a backslash render as `E'...'`).
 

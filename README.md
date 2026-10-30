@@ -128,3 +128,31 @@ Querysets from `SQLCompilerManager` also have `qs.sql_and_params()`, which retur
 - In hand-written SQL around it, keep user input in params and write a literal `%` as `%%`.
 - Empty querysets (`.none()`, `filter(id__in=[])`, an empty HAVING, an empty slice such as `qs[5:5]`) return SQL that matches no rows with the same columns.
 - Known limitation: an aggregate written as raw SQL (`RawSQL` or `extra(select=...)`, such as `COUNT(*)`) in a queryset with no aggregate Django recognizes has no GROUP BY, so its empty SQL returns one row instead of none.
+## Compose
+`compose(template, **slots)` fills the `%(name)s` slots of a hand-written SQL template with querysets, earlier `compose()` results and plain values. It returns one result that unpacks as `sql, params` for the querysets' shared database, with params in placeholder order and every value bound by the driver.
+
+```python
+from django.db import connections
+from sql_compiler import compose
+
+result = compose(
+    'WITH recent AS (%(recent)s), big AS (%(big)s) '
+    'SELECT recent.id FROM recent JOIN big ON big.id = recent.id WHERE recent.total > %(min_total)s',
+    recent=Order.objects.filter(created__gte=start).values('id', 'total'),
+    big=Order.objects.filter(total__gte=1000).values('id'),
+    min_total=50,
+)
+with connections[result.alias].cursor() as cursor:
+    cursor.execute(*result)
+    rows = cursor.fetchall()
+```
+
+- A QuerySet slot inserts its SQL as `sql_and_params` compiles it, a `compose()` result inserts its SQL (so results nest), and anything else becomes a `%s` param. Lists go to the driver unchanged.
+- Write a literal `%` as `%%`. It stays `%%` in the result, also when nested.
+- Embedded SQL is inserted as is, without added parentheses, so write them in the template.
+- All querysets and nested results must share one alias (`result.alias`), otherwise `ValueError`. At least one slot must hold a queryset or a `compose()` result.
+- Missing or unused slots, a positional `%s`, a lone `%` and any other `%(...)` form raise `ValueError` (with the position for `%` problems). A manager, a RawQuerySet, a Query, a Django expression such as `Subquery` and a `Q` raise `TypeError`.
+- A tuple (such as a `sql_and_params` pair) raises `TypeError`, because drivers bind tuples differently. Pass the queryset or a `compose()` result instead.
+- The template is trusted SQL: never build it from user input. Keep input in slots. A `%(name)s` inside a SQL string literal in the template is still a slot.
+- The result is for Django's cursor on `result.alias`, not the raw driver cursor. For `raw()`, use `MyModel.objects.raw(*result, using=result.alias)`.
+- Empty querysets embed SQL that matches no rows, with the same raw-SQL aggregate limitation as `sql_and_params`.
