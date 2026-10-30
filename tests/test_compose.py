@@ -160,6 +160,51 @@ def test_slot_named_template():
     assert result == ('SELECT x.n FROM ({}) x'.format(sq), pq)
 
 
+IDENTIFIER_NAMES = [
+    pytest.param('नाम', id='devanagari'),
+    pytest.param('x́', id='combining_acute'),
+    pytest.param('a·b', id='middle_dot'),
+    pytest.param('a‿b', id='undertie'),
+]
+
+
+@pytest.mark.parametrize('name', IDENTIFIER_NAMES)
+def test_slot_names_accept_every_identifier(name):
+    assert name.isidentifier()
+    qs = Thing.objects.filter(n__lte=6).values('id', 'n')
+    sq, pq = sql_and_params(qs)
+    result = compose('SELECT x.n FROM (%(' + name + ')s) x', **{name: qs})
+    assert result == ('SELECT x.n FROM ({}) x'.format(sq), pq)
+    result = compose('%(' + name + ')s UNION ALL %(' + name + ')s', **{name: qs})
+    assert result == ('{} UNION ALL {}'.format(sq, sq), pq + pq)
+    result = compose('SELECT %(' + name + ')s FROM (%(q)s) x', q=qs, **{name: 7})
+    assert result == ('SELECT %s FROM ({}) x'.format(sq), (7,) + pq)
+
+
+def test_slot_names_are_nfkc_normalized():
+    qs = Thing.objects.filter(n__lte=6).values('id', 'n')
+    sq, pq = sql_and_params(qs)
+    expected = ('SELECT x.n FROM ({}) x'.format(sq), pq)
+    # Python passes the keyword written with U+FB01 as 'fi'
+    assert compose('SELECT x.n FROM (%(ﬁ)s) x', ﬁ=qs) == expected
+    assert compose('SELECT x.n FROM (%(ﬁ)s) x', **{'ﬁ': qs}) == expected
+    assert compose('SELECT x.n FROM (%(fi)s) x', **{'ﬁ': qs}) == expected
+    with pytest.raises(ValueError) as excinfo:
+        compose('%(fi)s', **{'fi': qs, 'ﬁ': qs})
+    assert str(excinfo.value) == (
+        "compose got keyword arguments that name the same slot after NFKC normalization: 'fi', 'ﬁ'"
+    )
+    with pytest.raises(ValueError) as excinfo:
+        compose('%(q)s %(ﬁ)s', q=qs)
+    assert str(excinfo.value) == "compose template names slots that were not passed: 'fi'"
+    with pytest.raises(ValueError) as excinfo:
+        compose('SELECT %(ﬁ)d', q=qs)
+    assert str(excinfo.value) == PAREN.format(7)
+    with pytest.raises(ValueError) as excinfo:
+        compose('%(ﬁ)s %', **{'ﬁ': qs})
+    assert str(excinfo.value) == POSITIONAL.format(6)
+
+
 def test_double_percent_then_slot_parses():
     qs = Thing.objects.values('id')
     sq, pq = sql_and_params(qs)
@@ -257,6 +302,8 @@ def test_rejects_positional_or_lone_percent(template, position):
         pytest.param('%()s FROM (%(q)s) x', 0, id='empty'),
         pytest.param('%(1a)s FROM (%(q)s) x', 0, id='digit_start'),
         pytest.param('%(a b)s FROM (%(q)s) x', 0, id='space'),
+        pytest.param('%(a-b)s FROM (%(q)s) x', 0, id='hyphen'),
+        pytest.param('%(a%b)s FROM (%(q)s) x', 0, id='inner_percent'),
         pytest.param('SELECT %(n', 7, id='unclosed'),
     ],
 )
