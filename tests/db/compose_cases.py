@@ -253,7 +253,9 @@ def check_scenario(alias, scenario_id):
     if len(ref_params) >= 2:
         # a str bound against an integer column is a type error on PostgreSQL and a backend-specific
         # coercion on SQLite and MySQL, so its rows say nothing about the fixture
-        assert len({type(p) for p in ref_params}) == 1, '{} binds params of mixed types'.format(scenario_id)
+        # psycopg 3 binds Django's integer lookup values as Int4 or Int8, subclasses of int
+        kinds = {int if isinstance(p, int) else type(p) for p in ref_params}
+        assert len(kinds) == 1, '{} binds params of mixed types'.format(scenario_id)
         for perm in sorted(set(itertools.permutations(ref_params)) - {ref_params}, key=repr):
             assert fetch(alias, ref_sql, perm) != rows, '{} returns the expected rows with params {!r}'.format(
                 scenario_id, perm
