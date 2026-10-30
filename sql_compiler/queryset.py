@@ -41,3 +41,12 @@ class SQLCompilerQuerySet(QuerySet):
         compiled_query = utils.bytes_to_string(compiled_query, encoding)
 
         return compiled_query
+
+    def sql_and_params(self):
+
+        """
+        Returns the same (sql, params) pair as sql_compiler.sql_and_params for this queryset,
+        compiled again on every call.
+        """
+
+        return utils.sql_and_params(self)

@@ -3,6 +3,7 @@ import os
 import django
 import pytest
 from django.conf import settings
+from django.db import connections
 
 from tests import dbconfig
 
@@ -38,6 +39,7 @@ def pytest_report_header(config):
             parts.append('{}={} ({}, {}, {})'.format(alias, info['label'], info['driver'], info['where'], source))
     if state['default'] == 'sqlite':
         parts.append('default=SQLite (no-DB run)')
+    parts.append('{}=SQLite (in-memory)'.format(dbconfig.SQLITE_LIVE_ALIAS))
     return 'sql_compiler test databases: {}'.format(', '.join(parts))
 
 
@@ -52,3 +54,21 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if item.path.name == 'test_queryset.py':
             item.add_marker(skip)
+
+
+@pytest.fixture(scope='session')
+def things_sqlite():
+    # Imported here: Django is configured in pytest_configure
+    from tests.db.cases import ROWS
+    from tests.db.models import Thing
+
+    alias = dbconfig.SQLITE_LIVE_ALIAS
+    connection = connections[alias]
+    with connection.schema_editor() as editor:
+        if Thing._meta.db_table in connection.introspection.table_names():
+            editor.delete_model(Thing)
+        editor.create_model(Thing)
+    Thing.objects.using(alias).bulk_create([Thing(**row) for row in ROWS])
+    yield alias
+    with connection.schema_editor() as editor:
+        editor.delete_model(Thing)

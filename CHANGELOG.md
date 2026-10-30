@@ -6,6 +6,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- `sql_and_params(queryset)` and `SQLCompilerQuerySet.sql_and_params()` return a queryset's parameterized SQL and params (a tuple) compiled for the queryset's own database alias, on every Django backend, for executing through Django's cursor or `raw()` on that alias. Empty querysets return zero-row SQL with the same columns. Anything that isn't a QuerySet raises TypeError.
 - psycopg 3 support (psycopg >=3.2) for the PostgreSQL ENGINE strings `django.db.backends.postgresql` and `django_tenants.postgresql_backend`, with Django's default client-side binding and with `OPTIONS={'server_side_binding': True}`. `executable_query` used to raise TypeError or AttributeError under psycopg 3. Values are escaped by psycopg 3 itself, so some literals differ from psycopg2's (for example strings with a backslash render as `E'...'`).
 
 ### Changed
@@ -14,7 +15,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
-- `executable_query` no longer raises `EmptyResultSet` for querysets Django evaluates as empty (`.none()`, `filter(id__in=[])`, an empty HAVING clause, a union of empty parts, a subquery on an empty queryset). It returns SQL that has the same columns as the non-empty queryset and matches no rows, so it can be embedded in a CTE, a UNION or an `IN (...)` subquery. SQL for querysets that already compiled is unchanged. Known limitation: an aggregate written as raw SQL (`RawSQL` or `extra(select=...)`, such as `COUNT(*)`) in a queryset with no aggregate Django recognizes has no GROUP BY, so its empty SQL returns one row instead of none.
+- `executable_query` no longer raises `EmptyResultSet` for querysets Django evaluates as empty (`.none()`, `filter(id__in=[])`, an empty slice such as `qs[5:5]`, an empty HAVING clause, a union of empty parts, a subquery on an empty queryset). It returns SQL that has the same columns as the non-empty queryset and matches no rows, so it can be embedded in a CTE, a UNION or an `IN (...)` subquery. SQL for querysets that already compiled is unchanged. Known limitation: an aggregate written as raw SQL (`RawSQL` or `extra(select=...)`, such as `COUNT(*)`) in a queryset with no aggregate Django recognizes has no GROUP BY, so its empty SQL returns one row instead of none. An empty slice's zero-row SQL has no LIMIT/OFFSET; other sliced querysets keep theirs.
 
 ## [0.2.0] - 2026-10-25
 

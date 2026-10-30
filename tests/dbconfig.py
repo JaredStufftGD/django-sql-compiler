@@ -14,6 +14,8 @@ SERVER_SIDE_BINDING_ENV = 'SQLCOMPILER_TEST_PG_SERVER_SIDE_BINDING'
 POSTGRES_DEFAULT_URL = 'postgres://sqlcompiler:sqlcompiler@127.0.0.1:55432/sqlcompiler'
 MYSQL_DEFAULT_URL = 'mysql://sqlcompiler:sqlcompiler@127.0.0.1:53306/sqlcompiler'
 MYSQL_LATIN1_ALIAS = 'mysql_latin1'
+SQLITE_LIVE_ALIAS = 'sqlite_live'
+SQLITE_LIVE_SETTINGS = {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}
 
 # Filled once by conftest.pytest_configure; read by the DB fixtures and test markers
 STATE = {}
@@ -175,10 +177,15 @@ def build(environ):
     state['default'] = default
 
     if default == 'sqlite':
-        # SQLite is only an unsupported ENGINE here; no connection is ever opened
-        return {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}}, state
+        # default is only an unsupported ENGINE that never connects; sqlite_live is a real
+        # in-memory database for the sql_and_params tests
+        return {
+            'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'},
+            SQLITE_LIVE_ALIAS: dict(SQLITE_LIVE_SETTINGS),
+        }, state
 
     databases = {'default': settings_for[default]}
+    databases[SQLITE_LIVE_ALIAS] = dict(SQLITE_LIVE_SETTINGS)
     state[default]['alias'] = 'default'
     if default == 'mysql':
         # Same server, but the client connection uses latin1 (Python codec cp1252)
