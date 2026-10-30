@@ -205,6 +205,44 @@ def test_slot_names_are_nfkc_normalized():
     assert str(excinfo.value) == POSITIONAL.format(6)
 
 
+def test_compose_result_cannot_be_built_by_hand():
+    qs = Thing.objects.values('id')
+    message = 'ComposeResult is created by compose(); call compose() instead of building one'
+    with pytest.raises(TypeError) as excinfo:
+        ComposeResult('SELECT 1', (), 'default')
+    assert str(excinfo.value) == message
+    with pytest.raises(TypeError) as excinfo:
+        ComposeResult(*sql_and_params(qs), qs.db)
+    assert str(excinfo.value) == message
+
+
+@pytest.mark.parametrize(
+    'sql, params, alias, message',
+    [
+        pytest.param(b'SELECT 1', (), 'default', 'ComposeResult sql must be a str, got bytes', id='bytes_sql'),
+        pytest.param('SELECT 1', None, 'default', 'ComposeResult params must be a tuple, got NoneType', id='none_params'),
+        pytest.param('SELECT 1', [], 'default', 'ComposeResult params must be a tuple, got list', id='list_params'),
+        pytest.param(
+            'SELECT 1', Pair('a', ()), 'default', 'ComposeResult params must be a tuple, got Pair',
+            id='namedtuple_params',
+        ),
+        pytest.param('SELECT 1', (), None, 'ComposeResult alias must be a str, got NoneType', id='none_alias'),
+        pytest.param('SELECT 1', (), 5, 'ComposeResult alias must be a str, got int', id='int_alias'),
+    ],
+)
+def test_make_result_validates_its_fields(sql, params, alias, message):
+    with pytest.raises(TypeError) as excinfo:
+        composition.make_result(sql, params, alias)
+    assert str(excinfo.value) == message
+
+
+def test_make_result_builds_a_result():
+    result = composition.make_result('SELECT 1', (1,), 'default')
+    assert isinstance(result, ComposeResult)
+    assert result == ('SELECT 1', (1,))
+    assert result.alias == 'default'
+
+
 def test_double_percent_then_slot_parses():
     qs = Thing.objects.values('id')
     sq, pq = sql_and_params(qs)
@@ -237,7 +275,7 @@ def test_alias_is_the_querysets_alias():
 
 def test_result_survives_copy_and_pickle():
     result = compose('SELECT x.n FROM (%(q)s) x WHERE x.n > %(v)s', q=Thing.objects.filter(n__lte=6), v=2)
-    for clone in (copy.copy(result), pickle.loads(pickle.dumps(result))):
+    for clone in (copy.copy(result), copy.deepcopy(result), pickle.loads(pickle.dumps(result))):
         assert clone == result
         assert isinstance(clone, ComposeResult)
         assert clone.alias == result.alias
