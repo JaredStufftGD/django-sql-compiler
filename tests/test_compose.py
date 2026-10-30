@@ -14,6 +14,7 @@ from sql_compiler import ComposeResult, compose, composition, sql_and_params
 from sql_compiler import utils
 
 from tests import dbconfig
+from tests.db import compose_cases
 from tests.db.models import PlainThing, Thing
 
 Pair = namedtuple('Pair', ['sql', 'params'])
@@ -337,3 +338,21 @@ def test_alias_read_once_under_a_flipping_router(monkeypatch):
     with override_settings(DATABASE_ROUTERS=[FlippingRouter()]):
         result = compose('%(q)s', q=Thing.objects.filter(n__lte=3))
     assert seen == [result.alias]
+
+
+@pytest.mark.parametrize('scenario_id', compose_cases.SCENARIO_IDS)
+def test_scenario_runs_on_sqlite(things_sqlite, scenario_id):
+    compose_cases.check_scenario(things_sqlite, scenario_id)
+
+
+def test_raw_returns_instances_on_sqlite(things_sqlite):
+    compose_cases.check_raw(things_sqlite)
+
+
+def test_mixed_default_and_sqlite_live_rows_alias_error(things_sqlite):
+    inner = compose('%(q)s', q=Thing.objects.using(things_sqlite).all())
+    assert inner.alias == things_sqlite
+    with pytest.raises(ValueError) as excinfo:
+        compose('%(a)s UNION ALL %(b)s', a=inner, b=Thing.objects.using('default').all())
+    assert "'default'" in str(excinfo.value)
+    assert "'sqlite_live'" in str(excinfo.value)
