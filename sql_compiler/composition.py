@@ -1,4 +1,5 @@
 import re
+import unicodedata
 
 from django.db.models import Q, QuerySet
 from django.db.models.expressions import BaseExpression, Combinable
@@ -7,7 +8,7 @@ from django.db.models.query import RawQuerySet
 
 from . import utils
 
-SLOT_RE = re.compile(r'\((\w+)\)s')
+SLOT_RE = re.compile(r'\(([^()]*)\)s')
 
 REJECTED_TYPES = (BaseManager, RawQuerySet, BaseExpression, Combinable, Q)
 
@@ -50,8 +51,9 @@ def parse_template(template):
 
     """
     Splits the template into tokens: ('text', str), ('percent', None) for a literal %% and
-    ('slot', name) for %(name)s. Raises ValueError for any other use of %, naming the 0-based
-    index of the %.
+    ('slot', name) for %(name)s. A slot name is any Python identifier, NFKC-normalized like Python
+    normalizes keyword names. Raises ValueError for any other use of %, naming the 0-based index of
+    the % in the template as written.
     """
 
     tokens = []
@@ -70,11 +72,12 @@ def parse_template(template):
             i = found + 2
         elif following == '(':
             match = SLOT_RE.match(template, found + 1)
-            if match is None or not match.group(1).isidentifier():
+            name = None if match is None else unicodedata.normalize('NFKC', match.group(1))
+            if match is None or not name.isidentifier():
                 raise ValueError(
                     'compose template has a %(...) form other than %(name)s at position {}'.format(found)
                 )
-            tokens.append(('slot', match.group(1)))
+            tokens.append(('slot', name))
             i = match.end()
         else:
             raise ValueError(
@@ -90,7 +93,8 @@ def compose(template, /, **slots):
     Embeds querysets, other compose() results and plain values in one hand-written SQL template and
     returns a ComposeResult (sql, params) ready for Django's cursor on `result.alias`.
 
-    The template is a str. Only `%(name)s` (name is an identifier) is a slot and `%%` is a literal percent
+    The template is a str. Only `%(name)s` (name is any Python identifier, compared after NFKC normalization like Python keyword
+    names) is a slot and `%%` is a literal percent
     sign, copied to the output as `%%` (the sql has Django's %s placeholders, so it is still escaped for
     the cursor). A positional `%s`, a lone `%` or any other `%(...)` form raises ValueError. A `%(name)s`
     inside a SQL string literal is still a slot.
@@ -108,6 +112,18 @@ def compose(template, /, **slots):
     if not isinstance(template, str):
         raise TypeError('compose needs a str template, got {}'.format(type(template).__name__))
     tokens = parse_template(template)
+    passed = {}
+    for key in slots:
+        passed.setdefault(unicodedata.normalize('NFKC', key), []).append(key)
+    collisions = [(name, keys) for name, keys in sorted(passed.items()) if len(keys) > 1]
+    if collisions:
+        raise ValueError(
+            'compose got keyword arguments that name the same slot after NFKC normalization: {}'.format(
+                '; '.join(', '.join(repr(key) for key in sorted(keys)) for name, keys in collisions)
+            )
+        )
+    as_passed = {name: keys[0] for name, keys in passed.items()}
+    slots = {name: slots[key] for name, key in as_passed.items()}
     used = []
     for kind, name in tokens:
         if kind == 'slot' and name not in used:
@@ -119,7 +135,7 @@ def compose(template, /, **slots):
                 ', '.join(repr(name) for name in missing)
             )
         )
-    unused = sorted(set(slots) - set(used))
+    unused = sorted(as_passed[name] for name in set(slots) - set(used))
     if unused:
         raise ValueError(
             'compose got keyword arguments the template does not use: {}'.format(
