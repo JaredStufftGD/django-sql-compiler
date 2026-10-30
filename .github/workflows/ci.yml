@@ -84,14 +84,21 @@ jobs:
           "
       - name: Run the no-DB suite
         run: uv run --locked --with "$DJANGO_SPEC" pytest -rA 2>&1 | tee pytest.log
-      - name: Check the SQLite sql_and_params tests all passed and nothing xfailed
+      - name: Check the SQLite sql_and_params and compose tests all passed and nothing xfailed
         run: |
           # Runtime skips are reported at the raising line, not this file, so compare PASSED lines with the collected count.
-          collected=$(uv run --locked --with "$DJANGO_SPEC" pytest --collect-only -q tests/test_sql_and_params.py | grep -c '^tests/test_sql_and_params\.py::' || true)
-          passed=$(grep -cE '^PASSED tests/test_sql_and_params\.py::' pytest.log || true)
-          echo "collected $collected, passed $passed"
-          if ! { [ "$collected" -gt 0 ] && [ "$passed" -eq "$collected" ]; }; then
-            echo "Expected every SQLite sql_and_params test to pass: collected $collected, passed $passed"
+          failed=0
+          for f in tests/test_sql_and_params.py tests/test_compose.py; do
+            prefix=$(echo "$f" | sed 's/\./\\./g')
+            collected=$(uv run --locked --with "$DJANGO_SPEC" pytest --collect-only -q "$f" | grep -c "^${prefix}::" || true)
+            passed=$(grep -cE "^PASSED ${prefix}::" pytest.log || true)
+            echo "$f: collected $collected, passed $passed"
+            if ! { [ "$collected" -gt 0 ] && [ "$passed" -eq "$collected" ]; }; then
+              echo "Expected every test in $f to pass: collected $collected, passed $passed"
+              failed=1
+            fi
+          done
+          if [ "$failed" -ne 0 ]; then
             exit 1
           fi
           if grep -E '^(XFAIL|XPASS)' pytest.log || grep -E '^=+ .*[0-9]+ (xfailed|xpassed)' pytest.log; then
@@ -137,6 +144,7 @@ jobs:
             binding: ""
             mysql: false
             allowed: "no-DB test: needs the unsupported SQLite default alias|MySQL unavailable: no driver installed|GRO-10 pin needs default=PostgreSQL"
+            must_pass: "tests/test_sql_and_params.py tests/test_compose.py tests/db/test_compose.py"
             expect_ssb: ""
           - name: pg3
             services: postgres
@@ -146,6 +154,7 @@ jobs:
             binding: ""
             mysql: false
             allowed: "no-DB test: needs the unsupported SQLite default alias|MySQL unavailable: no driver installed|GRO-10 pin needs default=PostgreSQL"
+            must_pass: "tests/test_sql_and_params.py tests/test_compose.py tests/db/test_compose.py"
             expect_ssb: ""
           - name: pg3 server-side binding
             services: postgres
@@ -155,6 +164,7 @@ jobs:
             binding: "1"
             mysql: false
             allowed: "no-DB test: needs the unsupported SQLite default alias|MySQL unavailable: no driver installed|GRO-10 pin needs default=PostgreSQL"
+            must_pass: "tests/test_sql_and_params.py tests/test_compose.py tests/db/test_compose.py"
             expect_ssb: "1"
           - name: mysql
             services: mysql
@@ -164,6 +174,7 @@ jobs:
             binding: ""
             mysql: true
             allowed: "no-DB test: needs the unsupported SQLite default alias|PostgreSQL unavailable: no driver installed|GRO-10 pin needs default=PostgreSQL"
+            must_pass: "tests/test_sql_and_params.py tests/test_compose.py tests/db/test_compose.py"
             expect_ssb: ""
           - name: combined pg2 + mysql
             services: postgres mysql
@@ -173,6 +184,7 @@ jobs:
             binding: ""
             mysql: true
             allowed: "no-DB test: needs the unsupported SQLite default alias|MySQL not under test: it is the 'other' alias"
+            must_pass: "tests/test_sql_and_params.py tests/test_compose.py tests/db/test_compose.py tests/db/test_compose_other.py"
             expect_ssb: ""
     env:
       SQLCOMPILER_TEST_POSTGRES_URL: ${{ matrix.pg_url }}
@@ -182,6 +194,7 @@ jobs:
       UV_GROUPS: ${{ matrix.groups }}
       ALLOWED_SKIPS: ${{ matrix.allowed }}
       EXPECT_SSB: ${{ matrix.expect_ssb }}
+      MUST_PASS_FILES: ${{ matrix.must_pass }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -228,11 +241,18 @@ jobs:
             exit 1
           fi
           # Runtime skips are reported at the raising line, not this file, so compare PASSED lines with the collected count.
-          collected=$(uv run --locked --exact $UV_GROUPS pytest --collect-only -q tests/test_sql_and_params.py | grep -c '^tests/test_sql_and_params\.py::' || true)
-          passed=$(grep -cE '^PASSED tests/test_sql_and_params\.py::' pytest.log || true)
-          echo "collected $collected, passed $passed"
-          if ! { [ "$collected" -gt 0 ] && [ "$passed" -eq "$collected" ]; }; then
-            echo "SQLite sql_and_params tests must all pass in every DB job: collected $collected, passed $passed"
+          failed=0
+          for f in $MUST_PASS_FILES; do
+            prefix=$(echo "$f" | sed 's/\./\\./g')
+            collected=$(uv run --locked --exact $UV_GROUPS pytest --collect-only -q "$f" | grep -c "^${prefix}::" || true)
+            passed=$(grep -cE "^PASSED ${prefix}::" pytest.log || true)
+            echo "$f: collected $collected, passed $passed"
+            if ! { [ "$collected" -gt 0 ] && [ "$passed" -eq "$collected" ]; }; then
+              echo "Every test in $f must pass in this DB job: collected $collected, passed $passed"
+              failed=1
+            fi
+          done
+          if [ "$failed" -ne 0 ]; then
             exit 1
           fi
           if grep -E '^(XFAIL|XPASS)' pytest.log || grep -E '^=+ .*[0-9]+ (xfailed|xpassed)' pytest.log; then
