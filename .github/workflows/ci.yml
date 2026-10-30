@@ -66,6 +66,7 @@ jobs:
       DJANGO_LINE: ${{ matrix.django }}
       PYTHON_LINE: ${{ matrix.python }}
       DJANGO_SPEC: django~=${{ matrix.django }}.0
+      MUST_PASS_FILES: "tests/test_sql_and_params.py tests/test_compose.py"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -87,8 +88,13 @@ jobs:
       - name: Check the SQLite sql_and_params and compose tests all passed and nothing xfailed
         run: |
           # Runtime skips are reported at the raising line, not this file, so compare PASSED lines with the collected count.
+          # An empty list would skip the loop below and pass the step.
+          if [ -z "$(printf '%s' "$MUST_PASS_FILES" | tr -d '[:space:]')" ]; then
+            echo "MUST_PASS_FILES is empty: list the test files whose tests must all pass"
+            exit 1
+          fi
           failed=0
-          for f in tests/test_sql_and_params.py tests/test_compose.py; do
+          for f in $MUST_PASS_FILES; do
             prefix=$(echo "$f" | sed 's/\./\\./g')
             collected=$(uv run --locked --with "$DJANGO_SPEC" pytest --collect-only -q "$f" | grep -c "^${prefix}::" || true)
             passed=$(grep -cE "^PASSED ${prefix}::" pytest.log || true)
@@ -241,6 +247,11 @@ jobs:
             exit 1
           fi
           # Runtime skips are reported at the raising line, not this file, so compare PASSED lines with the collected count.
+          # An empty list would skip the loop below and pass the step.
+          if [ -z "$(printf '%s' "$MUST_PASS_FILES" | tr -d '[:space:]')" ]; then
+            echo "matrix.must_pass is empty: every db row must list the test files whose tests must all pass"
+            exit 1
+          fi
           failed=0
           for f in $MUST_PASS_FILES; do
             prefix=$(echo "$f" | sed 's/\./\\./g')
