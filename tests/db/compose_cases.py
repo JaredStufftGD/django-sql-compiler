@@ -1,3 +1,5 @@
+import itertools
+
 from django.db.models import F
 
 from sql_compiler import ComposeResult, compose, sql_and_params
@@ -29,7 +31,6 @@ def cte_join(alias):
         'ref_params': a_params + b_params,
         'params': (3, 5),
         'rows': [(3,), (4,), (5,)],
-        'misorder_check': True,
     }
 
 
@@ -49,7 +50,6 @@ def reordered_slots(alias):
         'ref_params': b_params + a_params,
         'params': (5, 3),
         'rows': [(3,), (4,), (5,)],
-        'misorder_check': True,
     }
 
 
@@ -60,27 +60,27 @@ def reused_queryset(alias):
     a_sql, a_params = sql_and_params(a)
     b_sql, b_params = sql_and_params(b)
     result = compose(
-        'SELECT x.n FROM (%(a)s) x JOIN (%(b)s) y ON x.id = y.id JOIN (%(a)s) z ON x.id = z.id ORDER BY x.n',
+        'SELECT (SELECT COUNT(*) FROM (%(a)s) x), (SELECT COUNT(*) FROM (%(b)s) y), '
+        '(SELECT MAX(z.n) FROM (%(a)s) z)',
         a=a,
         b=b,
     )
-    ref_sql = 'SELECT x.n FROM ({}) x JOIN ({}) y ON x.id = y.id JOIN ({}) z ON x.id = z.id ORDER BY x.n'.format(
-        a_sql, b_sql, a_sql
-    )
+    ref_sql = (
+        'SELECT (SELECT COUNT(*) FROM ({}) x), (SELECT COUNT(*) FROM ({}) y), (SELECT MAX(z.n) FROM ({}) z)'
+    ).format(a_sql, b_sql, a_sql)
     return {
         'result': result,
         'ref_sql': ref_sql,
         'ref_params': a_params + b_params + a_params,
         'params': (3, 6, 5, 3, 6),
-        'rows': [(3,), (4,), (5,)],
-        'misorder_check': True,
+        'rows': [(4, 5, 6)],
     }
 
 
 def reused_value(alias):
     t = things(alias)
     a = t.filter(n__lte=6).values('id', 'n')
-    b = t.filter(n__gte=1).values('id', 'n')
+    b = t.filter(n__gte=4).values('id', 'n')
     a_sql, a_params = sql_and_params(a)
     b_sql, b_params = sql_and_params(b)
     result = compose(
@@ -98,9 +98,8 @@ def reused_value(alias):
         'result': result,
         'ref_sql': ref_sql,
         'ref_params': a_params + (2,) + b_params + (2,),
-        'params': (6, 2, 1, 2),
-        'rows': [(3,), (4,), (5,), (6,)],
-        'misorder_check': True,
+        'params': (6, 2, 4, 2),
+        'rows': [(4,), (5,), (6,)],
     }
 
 
@@ -121,15 +120,14 @@ def nested(alias):
         'ref_params': q_params + (2,) + (6,),
         'params': (1, 2, 6),
         'rows': [(3, '%'), (4, '%'), (5, '%')],
-        'misorder_check': True,
     }
 
 
 def bound_value(alias):
-    q = things(alias).filter(n__gte=1).values('id', 'n', 'name')
+    q = things(alias).filter(n__isnull=False).values('id', 'n', 'name')
     q_sql, q_params = sql_and_params(q)
     result = compose(
-        'SELECT x.n FROM (%(q)s) x WHERE (x.name = %(name)s OR x.name = %(pct)s) '
+        'SELECT x.n FROM (%(q)s) x WHERE (x.name = %(name)s AND x.n < 3 OR x.name = %(pct)s AND x.n > 2) '
         'AND x.name <> %(v)s ORDER BY x.n',
         q=q,
         name="it's",
@@ -137,15 +135,15 @@ def bound_value(alias):
         v=PAYLOAD,
     )
     ref_sql = (
-        'SELECT x.n FROM ({}) x WHERE (x.name = %s OR x.name = %s) AND x.name <> %s ORDER BY x.n'
+        'SELECT x.n FROM ({}) x WHERE (x.name = %s AND x.n < 3 OR x.name = %s AND x.n > 2) '
+        'AND x.name <> %s ORDER BY x.n'
     ).format(q_sql)
     return {
         'result': result,
         'ref_sql': ref_sql,
         'ref_params': q_params + ("it's", 'plain %', PAYLOAD),
-        'params': (1, "it's", 'plain %', PAYLOAD),
+        'params': ("it's", 'plain %', PAYLOAD),
         'rows': [(1,), (3,)],
-        'misorder_check': False,
     }
 
 
@@ -160,7 +158,6 @@ def template_percent(alias):
         'ref_params': q_params,
         'params': (6,),
         'rows': [(3,), (4,)],
-        'misorder_check': False,
     }
 
 
@@ -175,7 +172,6 @@ def template_percent_no_params(alias):
         'ref_params': q_params,
         'params': (),
         'rows': [('%', 3)],
-        'misorder_check': False,
     }
 
 
@@ -190,7 +186,6 @@ def embedded_percent(alias):
         'ref_params': c_params + (3,),
         'params': (0, 3),
         'rows': [(2,)],
-        'misorder_check': True,
     }
 
 
@@ -216,7 +211,6 @@ def empty_queryset(alias):
         'ref_params': e_params + a_params + (4,),
         'params': e_params + (3, 4),
         'rows': [(0, 3)],
-        'misorder_check': False,
     }
 
 
@@ -255,8 +249,15 @@ def check_scenario(alias, scenario_id):
     composed_rows = fetch(alias, *result)
     assert composed_rows == fetch(alias, ref_sql, ref_params)
     assert composed_rows == rows
-    if case['misorder_check']:
-        assert fetch(alias, ref_sql, tuple(reversed(ref_params))) != rows
+    # template_percent and template_percent_no_params have fewer than two params, so no other order exists.
+    if len(ref_params) >= 2:
+        # a str bound against an integer column is a type error on PostgreSQL and a backend-specific
+        # coercion on SQLite and MySQL, so its rows say nothing about the fixture
+        assert len({type(p) for p in ref_params}) == 1, '{} binds params of mixed types'.format(scenario_id)
+        for perm in sorted(set(itertools.permutations(ref_params)) - {ref_params}, key=repr):
+            assert fetch(alias, ref_sql, perm) != rows, '{} returns the expected rows with params {!r}'.format(
+                scenario_id, perm
+            )
     if scenario_id == 'nested':
         assert "'%%'" in result.sql
         assert case['inner'].alias == alias
