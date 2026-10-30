@@ -22,17 +22,19 @@ class ComposeResult(tuple):
     `.alias` is the database alias shared by every queryset in the composition; `.sql` and `.params`
     mirror the two items. Equality with a plain tuple compares only sql and params, not the alias.
 
+    Only compose() creates a ComposeResult: calling ComposeResult(...) raises TypeError, so a hand-built
+    (sql, params) pair can never be passed off as one. Use the class for isinstance checks. Copies and
+    pickles are rebuilt through make_result, which checks the field types.
+
     The result is meant for `connections[result.alias].cursor().execute(*result)` (Django's cursor) and
     `Model.objects.raw(*result, using=result.alias)`, not for the raw driver cursor.
     """
 
-    def __new__(cls, sql, params, alias):
-        self = tuple.__new__(cls, (sql, params))
-        self._alias = alias
-        return self
+    def __new__(cls, *args, **kwargs):
+        raise TypeError('ComposeResult is created by compose(); call compose() instead of building one')
 
-    def __getnewargs__(self):
-        return self[0], self[1], self._alias
+    def __reduce__(self):
+        return make_result, (self[0], self[1], self._alias)
 
     @property
     def sql(self):
@@ -45,6 +47,18 @@ class ComposeResult(tuple):
     @property
     def alias(self):
         return self._alias
+
+
+def make_result(sql, params, alias):
+    if not isinstance(sql, str):
+        raise TypeError('ComposeResult sql must be a str, got {}'.format(type(sql).__name__))
+    if type(params) is not tuple:
+        raise TypeError('ComposeResult params must be a tuple, got {}'.format(type(params).__name__))
+    if not isinstance(alias, str):
+        raise TypeError('ComposeResult alias must be a str, got {}'.format(type(alias).__name__))
+    result = tuple.__new__(ComposeResult, (sql, params))
+    result._alias = alias
+    return result
 
 
 def parse_template(template):
@@ -169,7 +183,7 @@ def compose(template, /, **slots):
         raise ValueError(
             'compose slots must share one database alias, got {}'.format(
                 '; '.join(
-                    '{!r}: {}'.format(alias, ', '.join(sorted(names))) for alias, names in sorted(aliases.items())
+                    '{!r}: {}'.format(alias, ', '.join(sorted(names))) for alias, names in sorted(aliases.items(), key=lambda item: str(item[0]))
                 )
             )
         )
@@ -201,4 +215,4 @@ def compose(template, /, **slots):
             sql, piece_params = pieces[content]
             out.append(sql)
             params.extend(piece_params)
-    return ComposeResult(''.join(out), tuple(params), alias)
+    return make_result(''.join(out), tuple(params), alias)
