@@ -1,4 +1,4 @@
-# Runs the test suite, lock and packaging checks on every push to master and every pull request.
+# Runs the test suite, lint, lock and packaging checks on every push to master and every pull request.
 # Every setup-uv step pins the same uv version (it drives `uv lock --check` and every `--locked` run); bump them together.
 name: CI
 
@@ -47,6 +47,24 @@ jobs:
           version: "0.13.5"
       - run: uv build
       - run: uvx --from "twine>=6.1" twine check --strict dist/*
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: "0.13.5"
+          python-version: "3.13"
+      - name: ruff check
+        run: uv run --locked --only-group dev ruff check sql_compiler tests
+      - name: ruff format --check
+        if: ${{ !cancelled() }}
+        run: uv run --locked --only-group dev ruff format --check sql_compiler tests
 
   no-db:
     name: no-DB ${{ matrix.django }} / ${{ matrix.python }}
@@ -277,8 +295,8 @@ jobs:
   ci-gate:
     name: CI gate
     if: ${{ always() }}
-    # Every required job goes here (e.g. a future lint job); never django-dev. Branch protection requires only this check.
-    needs: [lock, packaging, no-db, db]
+    # Every required job goes here (lint included); never django-dev. Branch protection requires only this check.
+    needs: [lock, packaging, lint, no-db, db]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
