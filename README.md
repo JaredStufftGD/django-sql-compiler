@@ -4,7 +4,7 @@
 
 Use Django querysets inside raw SQL, safely.
 
-Filter with the ORM, write the rest (CTEs, joins, window functions) by hand. The ORM builds and validates your filters, so user input never has to be pasted into SQL text: every value stays a parameter that the database driver binds, on the queryset's own database. When you need a finished literal SQL string instead (for COPY, CREATE VIEW, logs or another tool), see "Finished literal SQL" below.
+Filter with the ORM, write the rest (CTEs, joins, window functions) by hand. The ORM builds and validates your filters, so user input never has to be pasted into SQL text: every value stays a parameter that the database driver binds, on the queryset's own database. When you need a finished literal SQL string instead (for COPY, CREATE VIEW, logs or another tool), see "Finished literal SQL" under "Choosing an API" below.
 
 ## Installation
 ```
@@ -27,7 +27,7 @@ INSTALLED_APPS = [
 ## Filter with the ORM, finish in SQL.
 The ORM builds and binds the filters. The handwritten SQL joins two independently filtered sets, groups them, filters on the aggregate and ranks the result in one readable statement.
 
-SQL dialect: PostgreSQL (the same SQL also runs on SQLite). It runs on the `default` alias, the queryset's `qs.db`, reported as `result.alias`. On MySQL 8 the rows match, but `total_cents` comes back as `Decimal`, because MySQL's SUM of an integer column returns DECIMAL and `fetch_rows` passes values through unconverted.
+Handwritten SQL is written in the dialect of the database the queryset runs on. This example's SQL runs unchanged on PostgreSQL, SQLite and MySQL 8. It runs on the `default` alias, the queryset's `qs.db`, reported as `leaderboard.alias`.
 
 Models and the result type (no custom manager needed):
 
@@ -87,7 +87,7 @@ min_total_cents = 5000                                              # extra valu
 customers = Customer.objects.filter(region=region).values('id', 'name')
 orders = Order.objects.filter(placed__gte=start, placed__lt=end).values('customer_id', 'amount_cents')
 
-result = compose(
+leaderboard = compose(
     '''
     WITH c AS (%(customers)s), o AS (%(orders)s)
     SELECT c.name AS name,
@@ -103,7 +103,7 @@ result = compose(
     orders=orders,
     min_total_cents=min_total_cents,
 )
-rows = fetch_rows(result, RegionLeader)   # runs on result.alias ('default' here)
+rows = fetch_rows(leaderboard, RegionLeader)   # runs on leaderboard.alias ('default' here)
 # [RegionLeader(name='Bo', orders=1, total_cents=9000, place=1),
 #  RegionLeader(name='Ada', orders=2, total_cents=7000, place=2)]
 ```
@@ -142,6 +142,7 @@ Querysets from `SQLCompilerManager` also have `qs.sql_and_params()`, which retur
 from django.db import connections
 from sql_compiler import compose
 
+# start comes from the CTE example above
 result = compose(
     'WITH recent AS (%(recent)s), big AS (%(big)s) '
     'SELECT recent.id FROM recent JOIN big ON big.id = recent.id WHERE recent.amount_cents > %(min_cents)s',
@@ -170,24 +171,19 @@ with connections[result.alias].cursor() as cursor:
 ```python
 from sql_compiler import fetch_rows
 
-dicts = fetch_rows(result, dict)             # [{'name': 'Bo', ...}, ...] in select order
-leaders = fetch_rows(result, RegionLeader)   # [RegionLeader(...), ...]
+# leaderboard: the compose() result from the CTE example above
+dicts = fetch_rows(leaderboard, dict)             # [{'name': 'Bo', 'orders': 1, 'total_cents': 9000, 'place': 1}, ...]
+leaders = fetch_rows(leaderboard, RegionLeader)   # [RegionLeader(...), ...]
 ```
 
 - It runs the result once on `result.alias` through Django's cursor and returns a list (empty when there are no rows). It adds no transaction.
 - `row=dict` gives dicts with the columns in select order. `row=<dataclass type>` builds instances by keyword.
 - For a dataclass, the column names must match the constructor fields exactly and case-sensitively. Fields with a default or default_factory may be missing. `init=False` fields and ClassVar are not columns.
-- Values are passed through exactly as the driver returns them, with no conversion (SQLite returns decimals as float, MySQL returns the SUM of an integer as Decimal), so alias columns explicitly in lowercase.
+- Values are passed through exactly as the driver returns them, with no conversion (SQLite returns decimals as float, MySQL returns the SUM of an integer as Decimal, so on MySQL the example's `total_cents` is a `Decimal`), so alias columns explicitly in lowercase.
 - Anything but a `compose()` result, or a row kind other than `dict` or a dataclass type, raises `TypeError` before any SQL runs.
 - A statement with no result set (it has already run), a result with no columns, duplicate column names, and extra columns or missing fields raise `ValueError`, checked before any row is built.
 
-### Django's cursor or raw()
-- Use `connections[result.alias].cursor()` (or `connections[qs.db]`) with `cursor.execute(*result)` when you need arbitrary columns or aggregates, or `fetch_rows` to get rows as dicts or dataclasses.
-- Use `raw(sql, params)` only when the SQL returns the model's own rows, including its primary key.
-- Pass `using=` (`result.alias` or `qs.db`) to `raw()`: `Model.objects.raw` without it runs on the router's or default alias.
-- Never use the raw driver cursor.
-
-## Finished literal SQL: executable_query
+### Finished literal SQL: executable_query
 `executable_query` gives you usable SQL from a QuerySet as one finished string, with every value escaped by the database driver. It is a property of `SQLCompilerQuerySet`, so the model needs `objects = SQLCompilerManager()`.
 
 Casting a queryset's `Query` object with `str(qs.query)` prints out what looks like valid SQL, but Django renders it for display: values are not escaped or quoted by the driver, so it is not actually valid SQL once there are dynamic components (such as filters from user input) in the `QuerySet`.
@@ -219,6 +215,12 @@ It works only on the ENGINEs and drivers listed under "Backend and version suppo
 - Never supply a params argument when passing its output to `raw()` or `cursor.execute()`: `%` characters in inlined values (any `contains` or `startswith` lookup, or a value like `50% off`) can be interpreted as formatting placeholders. Call `cursor.execute(sql)` with no second argument. With `raw()`, pass `None` explicitly as params (`Customer.objects.raw(sql, None)`), because raw()'s default `()` counts as a params argument at the driver. Handwritten text wrapped around the output must not contain `%s` placeholders either.
 - Filter values appear in plaintext in the SQL, so treat it as sensitive data in logs and caches.
 - The property is cached per queryset instance (each `.filter()` returns a new queryset), so read it after the queryset is fully built.
+
+### Django's cursor or raw()
+- Use `connections[result.alias].cursor()` (or `connections[qs.db]`) with `cursor.execute(*result)` when you need arbitrary columns or aggregates, or `fetch_rows` to get rows as dicts or dataclasses.
+- Use `raw(sql, params)` only when the SQL returns the model's own rows, including its primary key.
+- Pass `using=` (`result.alias` or `qs.db`) to `raw()`: `Model.objects.raw` without it runs on the router's or default alias.
+- Never use the raw driver cursor.
 
 ## Backend and version support
 The parameterized APIs (`sql_and_params`, `compose`, `fetch_rows`) compile through Django's own backend compiler and work on every Django backend. SQL you write around them can still depend on the backend's features (the CTE example needs CTEs and window functions).
