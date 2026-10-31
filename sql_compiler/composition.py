@@ -26,7 +26,8 @@ class ComposeResult(tuple):
     (sql, params) pair can never be passed off as one. Use the class for isinstance checks. Copies and
     pickles are rebuilt through make_result, which checks the field types.
 
-    The result is meant for `connections[result.alias].cursor().execute(*result)` (Django's cursor) and
+    The result is meant for `fetch_rows(result, dict)` or `fetch_rows(result, SomeDataclass)`,
+    `connections[result.alias].cursor().execute(*result)` (Django's cursor) and
     `Model.objects.raw(*result, using=result.alias)`, not for the raw driver cursor.
     """
 
