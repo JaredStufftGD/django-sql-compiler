@@ -4,7 +4,7 @@
 
 Use Django querysets inside raw SQL, safely.
 
-Filter with the ORM, write the rest (CTEs, joins, window functions) by hand. The ORM builds and validates your filters, so user input never has to be pasted into SQL text: every value stays a parameter that the database driver binds, on the queryset's own database. When you need a finished literal SQL string instead (for COPY, CREATE VIEW, logs or another tool), see "Finished literal SQL" under "Choosing an API" below.
+Build any queryset with the ORM (filters, joins, annotations, aggregates, `values()`) and write the rest (CTEs, window functions, anything the ORM can't express well) by hand. The ORM builds and validates the queryset, so user input never has to be pasted into SQL text: every value stays a parameter that the database driver binds, on the queryset's own database. When you need a finished literal SQL string instead (for COPY, CREATE VIEW, logs or another tool), see "Finished literal SQL" under "Choosing an API" below.
 
 ## Installation
 ```
@@ -25,9 +25,9 @@ INSTALLED_APPS = [
 `sql_and_params()`, `compose()` and `fetch_rows()` work on plain Django querysets with no custom manager. `SQLCompilerManager` is only needed for the queryset methods described below (`qs.sql_and_params()` and the finished-literal-SQL property).
 
 ## Filter with the ORM, finish in SQL.
-The ORM builds and binds the filters. The handwritten SQL joins two independently filtered sets, groups them, filters on the aggregate and ranks the result in one readable statement.
+Any queryset works here; this example uses two filtered ones. The ORM builds and binds them, and the handwritten SQL joins the two sets, groups them, filters on the aggregate and ranks the result in one readable statement.
 
-Handwritten SQL is written in the dialect of the database the queryset runs on. This example's SQL runs unchanged on PostgreSQL, SQLite and MySQL 8. It runs on the `default` alias, the queryset's `qs.db`, reported as `leaderboard.alias`.
+Write the handwritten SQL in your database's dialect; this example's SQL is portable (PostgreSQL, SQLite, MySQL 8).
 
 Models and the result type (no custom manager needed):
 
