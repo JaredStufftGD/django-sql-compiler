@@ -187,6 +187,83 @@ def no_result_set(alias):
     assert len(after) == len(ROWS)
 
 
+def mismatch(row, detail):
+    return 'fetch_rows: the result columns do not match the constructor fields of {}: {}'.format(row.__name__, detail)
+
+
+def run_select(alias, select, row, q=None):
+    q = things(alias).filter(n__lte=3) if q is None else q
+    return fetch_rows(compose(select + ' FROM (%(q)s) x ORDER BY x.id', q=q), row)
+
+
+def expect_mismatch(alias, select, row, detail, q=None):
+    with pytest.raises(ValueError) as excinfo:
+        run_select(alias, select, row, q)
+    assert str(excinfo.value) == mismatch(row, detail)
+
+
+EXTRA = 'SELECT x.id AS id, x.n AS n, x.name AS name'
+
+
+def extra_column(alias):
+    expect_mismatch(alias, EXTRA, IdN, "columns with no field: 'name'")
+
+
+def missing_field(alias):
+    expect_mismatch(alias, 'SELECT x.id AS id', IdN, "fields with no column: 'n'")
+
+
+def defaults_fill_missing(alias):
+    rows = run_select(alias, 'SELECT x.id AS id, x.n AS n', WithDefaults)
+    assert len(rows) == 3
+    assert [r.n for r in rows] == [1, 2, 3]
+    assert [r.label for r in rows] == ['none'] * 3
+    assert [r.tags for r in rows] == [[], [], []]
+    assert rows[0].tags is not rows[1].tags
+
+
+def several_mismatches(alias):
+    expect_mismatch(
+        alias, 'SELECT x.id AS id, x.name AS name, x.other AS other', IdNDay,
+        "columns with no field: 'name', 'other'; fields with no column: 'day', 'n'",
+    )
+
+
+def case_only_mismatch(alias):
+    expect_mismatch(
+        alias, 'SELECT x.id AS id, x.n AS total', CaseTotal,
+        "columns with no field: 'total'; fields with no column: 'Total'",
+    )
+
+
+def mismatch_with_zero_rows(alias):
+    expect_mismatch(alias, EXTRA, IdN, "columns with no field: 'name'", q=things(alias).filter(n__gt=1000))
+
+
+def post_init_not_called(alias):
+    del TRACKED[:]
+    detail = "columns with no field: 'name'"
+    expect_mismatch(alias, EXTRA, Tracked, detail)
+    expect_mismatch(alias, EXTRA, Tracked, detail, q=things(alias).filter(n__gt=1000))
+    assert TRACKED == []
+    rows = run_select(alias, 'SELECT x.id AS id, x.n AS n', Tracked)
+    assert len(rows) == 3
+    assert TRACKED == [r.id for r in rows]
+
+
+def initvar_filled(alias):
+    rows = run_select(alias, 'SELECT x.id AS id, x.n AS n, 10 AS scale', Scaled)
+    assert [r.scaled for r in rows] == [10, 20, 30]
+    assert 'scale' not in vars(rows[0])
+
+
+def init_false_and_classvar_are_extra(alias):
+    expect_mismatch(
+        alias, 'SELECT x.id AS id, x.n AS n, x.n AS scaled, x.name AS kind', Kinded,
+        "columns with no field: 'kind', 'scaled'",
+    )
+
+
 CHECKS = {
     'dataclass_rows': dataclass_rows,
     'dict_rows': dict_rows,
@@ -195,6 +272,15 @@ CHECKS = {
     'percent_literal': percent_literal,
     'duplicate_columns': duplicate_columns,
     'no_result_set': no_result_set,
+    'extra_column': extra_column,
+    'missing_field': missing_field,
+    'defaults_fill_missing': defaults_fill_missing,
+    'several_mismatches': several_mismatches,
+    'case_only_mismatch': case_only_mismatch,
+    'mismatch_with_zero_rows': mismatch_with_zero_rows,
+    'post_init_not_called': post_init_not_called,
+    'initvar_filled': initvar_filled,
+    'init_false_and_classvar_are_extra': init_false_and_classvar_are_extra,
 }
 CHECK_IDS = list(CHECKS)
 
