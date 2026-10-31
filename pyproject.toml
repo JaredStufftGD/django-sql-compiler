@@ -1,8 +1,9 @@
 [project]
 name = "django-sql-compiler"
 version = "0.2.0"
-description = "A light-weight module to generate usable SQL from a Django QuerySet."
+description = "Use Django querysets inside raw SQL, safely."
 readme = "README.md"
+keywords = ["django", "raw sql", "cte", "subquery", "queryset", "sql composition"]
 authors = [
     { name = "Grok Data / Jared Stufft", email = "jared@grokdata.tech" },
 ]
