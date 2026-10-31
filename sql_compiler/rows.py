@@ -14,6 +14,8 @@ def row_kind_name(row):
 def constructor_fields(row):
     fields = {}
     for name, field in row.__dataclass_fields__.items():
+        # dataclasses records ClassVar vs InitVar only in the private _field_type; public API can't tell
+        # them apart under string annotations (from __future__ import annotations). Guarded in tests/test_rows.py.
         if not field.init or field._field_type is dataclasses._FIELD_CLASSVAR:
             continue
         fields[name] = (
@@ -52,7 +54,10 @@ def fetch_rows(result, row):
     Duplicate column names are an error for both row kinds.
 
     No transaction is added: the statement runs as the connection state dictates, so the no-result-set
-    error is raised after the statement has run. Inside `transaction.atomic()` the exception rolls it back.
+    error is raised after the statement has run. So is any exception raised while building a row, which
+    propagates unchanged: one from `__post_init__` or a custom __init__, or the TypeError raised when a
+    `@dataclass(init=False)` class has no __init__ of its own and can't take keyword arguments. Inside
+    `transaction.atomic()` the exception rolls it back.
     """
 
     if not isinstance(result, ComposeResult):
