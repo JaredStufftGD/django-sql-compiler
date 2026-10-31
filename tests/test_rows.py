@@ -53,7 +53,7 @@ class QuotedMixed:
     d: 'int' = dataclasses.field(init=False, default=0)
     e: 'typing.ClassVar[int]' = 1
     f: 'dataclasses.InitVar[int]' = 2
-    g: 'Unresolvable' = None
+    g: 'Unresolvable' = None  # noqa: F821  # deliberately unresolvable: fetch_rows must not resolve annotations
 
     def __post_init__(self, b, f):
         self.b_seen = b

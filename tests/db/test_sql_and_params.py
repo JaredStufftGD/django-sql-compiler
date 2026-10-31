@@ -1,5 +1,4 @@
 import pytest
-from django.db import connections
 from django.db.models import QuerySet
 from django.test import override_settings
 

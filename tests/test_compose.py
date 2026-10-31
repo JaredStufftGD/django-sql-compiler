@@ -11,7 +11,6 @@ from django.test import override_settings
 
 import sql_compiler
 from sql_compiler import ComposeResult, compose, composition, sql_and_params
-from sql_compiler import utils
 
 from tests import dbconfig
 from tests.db import compose_cases
