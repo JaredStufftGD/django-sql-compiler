@@ -48,9 +48,7 @@ def test_empty_pair_returns_zero_rows(db_under_test, things, shape_id):
     _, empty_factory, counterpart_factory = EMPTY_BY_ID[shape_id]
     empty_qs = empty_factory(Thing.objects)
     assert list(empty_qs) == []
-    shapes.assert_empty_pair(
-        'default', sql_and_params(empty_qs), sql_and_params(counterpart_factory(Thing.objects))
-    )
+    shapes.assert_empty_pair('default', sql_and_params(empty_qs), sql_and_params(counterpart_factory(Thing.objects)))
 
 
 def test_plain_manager_queryset_runs_on_default(db_under_test, things):
@@ -59,7 +57,10 @@ def test_plain_manager_queryset_runs_on_default(db_under_test, things):
     shapes.assert_pair_matches_queryset(qs, 'default', sql_and_params(qs), 'instances', False)
 
 
-gro10 = pytest.mark.skipif(not dbconfig.gro10_ready(), reason='GRO-10 pin needs default=PostgreSQL via psycopg2 and MySQL as alias other; run uv run --exact --group pg2 --group mysql pytest')
+gro10 = pytest.mark.skipif(
+    not dbconfig.gro10_ready(),
+    reason='GRO-10 pin needs default=PostgreSQL via psycopg2 and MySQL as alias other; run uv run --exact --group pg2 --group mysql pytest',
+)
 
 
 class ThingReadsToOther:

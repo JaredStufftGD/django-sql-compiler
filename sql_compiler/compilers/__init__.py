@@ -7,18 +7,11 @@ __all__ = [
     'PostgresTenantsCompiler',
     'Psycopg2Compiler',
     'compiler_map',
-    'SUPPORTED_BACKENDS'
+    'SUPPORTED_BACKENDS',
 ]
 
-compilers = [
-    MySQLCompiler,
-    PostgresCompiler,
-    PostgresTenantsCompiler,
-    Psycopg2Compiler
-]
+compilers = [MySQLCompiler, PostgresCompiler, PostgresTenantsCompiler, Psycopg2Compiler]
 
-compiler_map = {
-    compiler.backend_name: compiler for compiler in compilers
-}
+compiler_map = {compiler.backend_name: compiler for compiler in compilers}
 
 SUPPORTED_BACKENDS = compiler_map.keys()

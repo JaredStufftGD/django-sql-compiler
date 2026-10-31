@@ -26,10 +26,13 @@ def set_client_encoding(connection, name):
             cursor.execute("SET client_encoding TO '{}'".format(name))
 
 
-@pytest.mark.parametrize('pg_encoding, raw_bytes, text', [
-    pytest.param('WIN1252', b"SELECT 'caf\xe9 \x80'", "SELECT 'café €'", id='WIN1252'),
-    pytest.param('LATIN1', b"SELECT 'caf\xe9'", "SELECT 'café'", id='LATIN1'),
-])
+@pytest.mark.parametrize(
+    'pg_encoding, raw_bytes, text',
+    [
+        pytest.param('WIN1252', b"SELECT 'caf\xe9 \x80'", "SELECT 'café €'", id='WIN1252'),
+        pytest.param('LATIN1', b"SELECT 'caf\xe9'", "SELECT 'café'", id='LATIN1'),
+    ],
+)
 def test_postgres_python_encoding_uses_the_driver_encoding_table(postgres_db, pg_encoding, raw_bytes, text):
     # No stubs: the driver's own mapping (psycopg2.extensions.encodings, or psycopg 3's info.encoding) is used
     postgres_db.ensure_connection()
@@ -41,11 +44,14 @@ def test_postgres_python_encoding_uses_the_driver_encoding_table(postgres_db, pg
         set_client_encoding(postgres_db, 'UTF8')
 
 
-@pytest.mark.parametrize('pg_encoding, value, key', [
-    pytest.param('WIN1252', 'café', 'non_ascii', id='WIN1252-cafe'),
-    pytest.param('WIN1252', '€', 'non_ascii_euro', id='WIN1252-euro'),
-    pytest.param('LATIN1', 'café', 'non_ascii', id='LATIN1-cafe'),
-])
+@pytest.mark.parametrize(
+    'pg_encoding, value, key',
+    [
+        pytest.param('WIN1252', 'café', 'non_ascii', id='WIN1252-cafe'),
+        pytest.param('WIN1252', '€', 'non_ascii_euro', id='WIN1252-euro'),
+        pytest.param('LATIN1', 'café', 'non_ascii', id='LATIN1-cafe'),
+    ],
+)
 def test_executable_query_under_non_utf8_client_encoding(postgres_db, things, pg_encoding, value, key):
     postgres_db.ensure_connection()
     set_client_encoding(postgres_db, pg_encoding)

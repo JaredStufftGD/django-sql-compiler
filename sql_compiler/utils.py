@@ -6,7 +6,6 @@ from .compilers import SUPPORTED_BACKENDS
 
 
 def validate_connection(connection):
-
     """
     Since not all back ends provide a method to compile the SQL together with the params,
     we need to check if the connection for the QuerySet is supported.
@@ -20,7 +19,6 @@ def validate_connection(connection):
 
 
 def bytes_to_string(bytes_obj, encoding):
-
     """
     Decodes a bytes object to a string with the Python codec the connection's driver reports.
 
@@ -31,7 +29,6 @@ def bytes_to_string(bytes_obj, encoding):
 
 
 class AlwaysFalseHaving:
-
     """
     An always-false predicate that Django's compiler moves to HAVING, because it reports an aggregate.
     """
@@ -47,7 +44,6 @@ class AlwaysFalseHaving:
 
 
 def zero_row_query(query, clear_ordering=False):
-
     """
     Returns a clone of the query that matches no rows and keeps the same select list (and GROUP BY).
 
@@ -85,7 +81,6 @@ def zero_row_query(query, clear_ordering=False):
 
 
 def query_sql_and_params(query, using):
-
     """
     Compiles the query for the alias and returns the parameterized SQL and its params.
 
@@ -108,7 +103,6 @@ def query_sql_and_params(query, using):
 
 
 def sql_and_params(queryset):
-
     """
     Returns the parameterized SQL (a str with Django's %s placeholders) and its params (a tuple)
     for the queryset's own database alias (`queryset.db`, from `.using()` or a database router).

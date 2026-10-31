@@ -10,7 +10,12 @@ SHAPES = [
     ('ordered', lambda base: base.filter(n__isnull=False).order_by('-n', 'pk'), 'instances', True),
     ('values', lambda base: base.filter(n__gte=2).values('id', 'name', 'n').order_by('n', 'pk'), 'values', True),
     ('values_list', lambda base: base.values_list('id', 'name', 'n').order_by('n', 'pk'), 'values', True),
-    ('count_group_by', lambda base: base.values('flag').annotate(c=Count('id'), s=Sum('n')).order_by('flag'), 'count', True),
+    (
+        'count_group_by',
+        lambda base: base.values('flag').annotate(c=Count('id'), s=Sum('n')).order_by('flag'),
+        'count',
+        True,
+    ),
     ('annotated', lambda base: base.annotate(s=Sum('n')).order_by('pk'), 'annotated', True),
     ('union', lambda base: base.filter(n__lte=3).union(base.filter(n__gte=2)), 'combined', False),
     (

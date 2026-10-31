@@ -5,7 +5,6 @@ from .base import BaseSQLCompiler
 
 
 class PostgresCompiler(BaseSQLCompiler):
-
     """
     Compiles an executable SQL query from a parameterized query and arg list with the connection's own driver:
     psycopg2's cursor.mogrify, or for psycopg 3 (3.2 or later, client-side or server-side binding) a ClientCursor
@@ -17,6 +16,7 @@ class PostgresCompiler(BaseSQLCompiler):
 
     def encoding_map(self):
         from psycopg2.extensions import encodings
+
         return encodings
 
     def driver(self, raw):
@@ -29,7 +29,9 @@ class PostgresCompiler(BaseSQLCompiler):
             return 'psycopg2'
         raise NotImplementedError(
             '{}.{} is not a psycopg2 or psycopg 3 connection; only those PostgreSQL drivers are supported.'.format(
-                type(raw).__module__, type(raw).__qualname__))
+                type(raw).__module__, type(raw).__qualname__
+            )
+        )
 
     def psycopg_encoding(self, raw):
         # psycopg 3 reports a Python codec name, or raises its NotSupportedError for a client encoding Python has
@@ -60,6 +62,7 @@ class PostgresCompiler(BaseSQLCompiler):
                 # Resolve the codec first, so an encoding Python can't handle raises LookupError, not from mogrify
                 encoding = self.psycopg_encoding(raw)
                 from psycopg import ClientCursor
+
                 with ClientCursor(raw) as client_cursor:
                     text = client_cursor.mogrify(query, params)
                 compiled_sql = text.encode(encoding)

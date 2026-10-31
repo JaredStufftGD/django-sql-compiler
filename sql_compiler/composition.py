@@ -14,7 +14,6 @@ REJECTED_TYPES = (BaseManager, RawQuerySet, BaseExpression, Combinable, Q)
 
 
 class ComposeResult(tuple):
-
     """
     The result of compose(): a tuple of exactly two items that unpacks as `sql, params`
     (a str with Django's %s placeholders, and a tuple of params).
@@ -63,7 +62,6 @@ def make_result(sql, params, alias):
 
 
 def parse_template(template):
-
     """
     Splits the template into tokens: ('text', str), ('percent', None) for a literal %% and
     ('slot', name) for %(name)s. A slot name is any Python identifier, NFKC-normalized like Python
@@ -81,7 +79,7 @@ def parse_template(template):
             break
         if found > i:
             tokens.append(('text', template[i:found]))
-        following = template[found + 1:found + 2]
+        following = template[found + 1 : found + 2]
         if following == '%':
             tokens.append(('percent', None))
             i = found + 2
@@ -89,21 +87,17 @@ def parse_template(template):
             match = SLOT_RE.match(template, found + 1)
             name = None if match is None else unicodedata.normalize('NFKC', match.group(1))
             if match is None or not name.isidentifier():
-                raise ValueError(
-                    'compose template has a %(...) form other than %(name)s at position {}'.format(found)
-                )
+                raise ValueError('compose template has a %(...) form other than %(name)s at position {}'.format(found))
             tokens.append(('slot', name))
             i = match.end()
         else:
             raise ValueError(
-                'compose template has a positional %s or a lone % at position {}; '
-                'write a literal % as %%'.format(found)
+                'compose template has a positional %s or a lone % at position {}; write a literal % as %%'.format(found)
             )
     return tokens
 
 
 def compose(template, /, **slots):
-
     """
     Embeds querysets, other compose() results and plain values in one hand-written SQL template and
     returns a ComposeResult (sql, params) ready for Django's cursor on `result.alias`.
@@ -146,9 +140,7 @@ def compose(template, /, **slots):
     missing = [name for name in used if name not in slots]
     if missing:
         raise ValueError(
-            'compose template names slots that were not passed: {}'.format(
-                ', '.join(repr(name) for name in missing)
-            )
+            'compose template names slots that were not passed: {}'.format(', '.join(repr(name) for name in missing))
         )
     unused = sorted(as_passed[name] for name in set(slots) - set(used))
     if unused:
@@ -184,14 +176,14 @@ def compose(template, /, **slots):
         raise ValueError(
             'compose slots must share one database alias, got {}'.format(
                 '; '.join(
-                    '{!r}: {}'.format(alias, ', '.join(sorted(names))) for alias, names in sorted(aliases.items(), key=lambda item: str(item[0]))
+                    '{!r}: {}'.format(alias, ', '.join(sorted(names)))
+                    for alias, names in sorted(aliases.items(), key=lambda item: str(item[0]))
                 )
             )
         )
     if not aliases:
         raise ValueError(
-            'compose needs at least one slot holding a QuerySet or a compose() result, '
-            'to know the database alias'
+            'compose needs at least one slot holding a QuerySet or a compose() result, to know the database alias'
         )
     alias = next(iter(aliases))
     pieces = {}

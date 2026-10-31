@@ -61,7 +61,9 @@ def mysql_db():
 def db_under_test():
     default = dbconfig.STATE['default']
     if default == 'sqlite':
-        pytest.skip('No database under test: {}; {}'.format(vendor_unavailable('postgres'), vendor_unavailable('mysql')))
+        pytest.skip(
+            'No database under test: {}; {}'.format(vendor_unavailable('postgres'), vendor_unavailable('mysql'))
+        )
     return default
 
 

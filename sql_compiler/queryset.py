@@ -6,10 +6,8 @@ from . import compilers
 
 
 class SQLCompilerQuerySet(QuerySet):
-
     @cached_property
     def executable_query(self):
-
         """
         Takes the parameterized SQL query with the arg list and compiles the query so
         that it can be used anywhere - as a subquery in a Raw SQL query, in a SQL GUI interface, etc.
@@ -43,7 +41,6 @@ class SQLCompilerQuerySet(QuerySet):
         return compiled_query
 
     def sql_and_params(self):
-
         """
         Returns the same (sql, params) pair as sql_compiler.sql_and_params for this queryset,
         compiled again on every call.
