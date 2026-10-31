@@ -13,6 +13,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- The README and PyPI summary now lead with parameterized composition ("Use Django querysets inside raw SQL, safely.") with one complete CTE example returning typed rows, PyPI keywords were added, and the README's `executable_query` examples no longer pass a params argument (`raw(sql, None)`, `cursor.execute(sql)`), which broke on `%` in inlined values.
 - A PostgreSQL connection whose raw connection is neither psycopg2 nor psycopg 3 now raises `NotImplementedError` naming its module and class.
 
 ### Fixed
