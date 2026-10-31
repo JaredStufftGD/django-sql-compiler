@@ -35,6 +35,59 @@ class Plain:
     pass
 
 
+@dataclasses.dataclass
+class Mixed:
+    a: int
+    b: dataclasses.InitVar[int]
+    c: int = dataclasses.field(default=0)
+    d: int = dataclasses.field(init=False, default=0)
+    e: typing.ClassVar[int] = 1
+    f: dataclasses.InitVar[int] = 2
+
+
+@dataclasses.dataclass
+class QuotedMixed:
+    a: 'int'
+    b: 'dataclasses.InitVar[int]'
+    c: 'int' = dataclasses.field(default=0)
+    d: 'int' = dataclasses.field(init=False, default=0)
+    e: 'typing.ClassVar[int]' = 1
+    f: 'dataclasses.InitVar[int]' = 2
+    g: 'Unresolvable' = None
+
+    def __post_init__(self, b, f):
+        self.b_seen = b
+
+
+class RowBuildError(Exception):
+    pass
+
+
+@dataclasses.dataclass
+class Exploding:
+    x: int
+
+    def __post_init__(self):
+        raise RowBuildError('boom')
+
+
+@dataclasses.dataclass(init=False)
+class NoInit:
+    x: int
+
+
+@dataclasses.dataclass(init=False)
+class KeywordInit:
+    x: int
+
+    def __init__(self, *, x):
+        self.x = x * 10
+
+
+def describe(*names):
+    return tuple((name, None, None, None, None, None, None) for name in names)
+
+
 @pytest.fixture(autouse=True)
 def default_never_connects():
     yield
@@ -180,3 +233,84 @@ def test_fake_cursor_rows_are_built_from_description(monkeypatch):
 @pytest.mark.parametrize('check_id', rows_cases.CHECK_IDS)
 def test_check_runs_on_sqlite(things_sqlite, check_id):
     rows_cases.run_check(things_sqlite, check_id)
+
+
+def test_private_dataclasses_names_still_exist():
+    message = 'dataclasses private names changed; update sql_compiler.rows.constructor_fields'
+    assert hasattr(dataclasses, '_FIELD_CLASSVAR'), message
+    for cls in (Mixed, QuotedMixed):
+        for field in cls.__dataclass_fields__.values():
+            assert hasattr(field, '_field_type'), message
+
+
+@pytest.mark.parametrize('cls', [Mixed, QuotedMixed], ids=['eager', 'quoted'])
+def test_dataclasses_classvar_classification(cls):
+    classvars = {
+        name for name, field in cls.__dataclass_fields__.items()
+        if field._field_type is dataclasses._FIELD_CLASSVAR
+    }
+    assert classvars == {'e'}
+
+
+@pytest.mark.parametrize(
+    'cls, expected',
+    [
+        (Mixed, {'a': False, 'b': False, 'c': True, 'f': True}),
+        (QuotedMixed, {'a': False, 'b': False, 'c': True, 'f': True, 'g': True}),
+    ],
+    ids=['eager', 'quoted'],
+)
+def test_constructor_fields_counts_initvar_and_skips_init_false_and_classvar(cls, expected):
+    assert sql_compiler.rows.constructor_fields(cls) == expected
+
+
+def test_quoted_annotations_build_rows_and_report_classvar_column(monkeypatch):
+    result = make_result()
+    fake = FakeCursor(describe('a', 'b'), [(1, 5)])
+    install_fake(monkeypatch, result.alias, fake)
+    rows = fetch_rows(result, QuotedMixed)
+    assert len(rows) == 1
+    assert rows[0].a == 1
+    assert rows[0].c == 0
+    assert rows[0].b_seen == 5
+
+    fake = FakeCursor(describe('a', 'b', 'e'), [(1, 5, 7)])
+    install_fake(monkeypatch, result.alias, fake)
+    with pytest.raises(ValueError) as excinfo:
+        fetch_rows(result, QuotedMixed)
+    assert "'e'" in str(excinfo.value)
+    assert 'columns with no field' in str(excinfo.value)
+    assert fake.fetched == []
+
+
+def test_post_init_exception_propagates_after_statement_ran(monkeypatch):
+    result = make_result()
+    fake = FakeCursor(describe('x'), [(1,)])
+    install_fake(monkeypatch, result.alias, fake)
+    with pytest.raises(RowBuildError) as excinfo:
+        fetch_rows(result, Exploding)
+    assert excinfo.type is RowBuildError
+    assert str(excinfo.value) == 'boom'
+    assert fake.executed == [(result.sql, result.params)]
+    assert fake.fetched == [True]
+
+
+def test_init_false_without_init_raises_type_error_after_statement_ran(monkeypatch):
+    result = make_result()
+    fake = FakeCursor(describe('x'), [(1,)])
+    install_fake(monkeypatch, result.alias, fake)
+    with pytest.raises(TypeError) as excinfo:
+        fetch_rows(result, NoInit)
+    assert excinfo.type is TypeError
+    assert fake.executed == [(result.sql, result.params)]
+    assert fake.fetched == [True]
+
+
+def test_init_false_with_custom_init_is_called_by_keyword(monkeypatch):
+    result = make_result()
+    fake = FakeCursor(describe('x'), [(2,)])
+    install_fake(monkeypatch, result.alias, fake)
+    rows = fetch_rows(result, KeywordInit)
+    assert len(rows) == 1
+    assert type(rows[0]) is KeywordInit
+    assert rows[0].x == 20
