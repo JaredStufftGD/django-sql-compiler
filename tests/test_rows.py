@@ -11,6 +11,7 @@ import sql_compiler
 from sql_compiler import compose, fetch_rows, sql_and_params
 
 from tests import dbconfig
+from tests.db import rows_cases
 from tests.db.models import Thing
 
 RESULT_MESSAGE = 'fetch_rows needs a ComposeResult from compose(), got {}'
@@ -174,3 +175,8 @@ def test_fake_cursor_rows_are_built_from_description(monkeypatch):
         assert sql == result.sql
         assert params == ()
         assert type(params) is tuple
+
+
+@pytest.mark.parametrize('check_id', rows_cases.CHECK_IDS)
+def test_check_runs_on_sqlite(things_sqlite, check_id):
+    rows_cases.run_check(things_sqlite, check_id)
