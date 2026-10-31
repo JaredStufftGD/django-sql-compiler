@@ -1,6 +1,8 @@
+import dataclasses
+
 import pytest
 
-from sql_compiler import utils
+from sql_compiler import compose, fetch_rows, utils
 from sql_compiler.compilers import PostgresCompiler
 
 from .cases import CASE_IDS, run_case
@@ -70,3 +72,16 @@ def test_unencodable_value_raises_the_driver_error(postgres_db, things):
             Thing.objects.filter(name='東京').executable_query
     finally:
         set_client_encoding(postgres_db, 'UTF8')
+
+
+@dataclasses.dataclass
+class OnlyId:
+    id: int
+
+
+@pytest.mark.parametrize('row', [dict, OnlyId], ids=['dict', 'dataclass'])
+def test_fetch_rows_rejects_zero_column_result(postgres_db, things, row):
+    result = compose('SELECT FROM sqlcompiler_thing WHERE id IN (%(q)s)', q=Thing.objects.values('id'))
+    with pytest.raises(ValueError) as excinfo:
+        fetch_rows(result, row)
+    assert str(excinfo.value) == 'fetch_rows: the result has no columns'
