@@ -121,3 +121,6 @@ def sql_and_params(queryset):
     alias = queryset.db
     sql, params = query_sql_and_params(queryset.query, alias)
     return sql, tuple(params)
+
+import os
+x = {  'a':1 }
