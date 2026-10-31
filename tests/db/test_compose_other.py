@@ -1,7 +1,8 @@
 import pytest
+from django.db.utils import DatabaseError
 from django.test import override_settings
 
-from sql_compiler import compose
+from sql_compiler import compose, fetch_rows
 
 from tests import dbconfig
 
@@ -57,3 +58,20 @@ def test_mixed_postgres_default_and_mysql_other_raise(things_other):
         compose('%(a)s UNION ALL %(b)s', a=nested, b=Thing.objects.using('default').all())
     assert "'default'" in str(excinfo.value)
     assert "'other'" in str(excinfo.value)
+
+
+@gro10
+def test_fetch_rows_runs_on_other_alias(things_other):
+    template = 'SELECT x.n AS n, IFNULL(x.n, -1) AS n_or_minus_one, VERSION() AS version FROM (%(q)s) x ORDER BY x.id'
+    other = compose(template, q=Thing.objects.using('other').filter(name__in=["it's", 'café']))
+    assert other.alias == 'other'
+    rows = fetch_rows(other, dict)
+    assert [r['n'] for r in rows] == [1, None]
+    assert [r['n_or_minus_one'] for r in rows] == [1, -1]
+    for r in rows:
+        assert isinstance(r['version'], str)
+        assert 'PostgreSQL' not in r['version']
+    default = compose(template, q=Thing.objects.using('default').filter(name__in=["it's", 'café']))
+    assert default.alias == 'default'
+    with pytest.raises(DatabaseError):
+        fetch_rows(default, dict)
