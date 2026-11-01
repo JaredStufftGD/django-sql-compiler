@@ -1,6 +1,6 @@
 [project]
 name = "django-sql-compiler"
-version = "0.2.0"
+version = "1.0.0"
 description = "Use Django querysets inside raw SQL, safely."
 readme = "README.md"
 keywords = ["django", "raw sql", "cte", "subquery", "queryset", "sql composition"]
@@ -14,7 +14,7 @@ dependencies = [
     "Django>=4.2",
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Environment :: Web Environment",
     "Framework :: Django",
     "Framework :: Django :: 4.2",
