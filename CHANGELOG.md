@@ -2,7 +2,9 @@
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.0.0] - 2026-11-01
+
+The first release with safe SQL composition: `sql_and_params`, `compose`/`ComposeResult` and `fetch_rows` turn querysets into parameterized SQL, embed them in hand-written queries and return typed rows, and psycopg 3 is now supported. `executable_query` users upgrading from 0.2.0 get no breaking changes. Two behavior changes are worth knowing: empty querysets now return zero-row SQL instead of raising `EmptyResultSet` (see Fixed), and a PostgreSQL connection whose raw connection is neither psycopg2 nor psycopg 3 now raises `NotImplementedError`; stock Django never creates one (see Changed).
 
 ### Added
 
@@ -19,6 +21,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - `executable_query` no longer raises `EmptyResultSet` for querysets Django evaluates as empty (`.none()`, `filter(id__in=[])`, an empty slice such as `qs[5:5]`, an empty HAVING clause, a union of empty parts, a subquery on an empty queryset). It returns SQL that has the same columns as the non-empty queryset and matches no rows, so it can be embedded in a CTE, a UNION or an `IN (...)` subquery. SQL for querysets that already compiled is unchanged. Known limitation: an aggregate written as raw SQL (`RawSQL` or `extra(select=...)`, such as `COUNT(*)`) in a queryset with no aggregate Django recognizes has no GROUP BY, so its empty SQL returns one row instead of none. An empty slice's zero-row SQL has no LIMIT/OFFSET; other sliced querysets keep theirs.
+
+### Packaging
+
+- The Development Status classifier is now `5 - Production/Stable`.
 
 ## [0.2.0] - 2026-10-25
 
@@ -59,4 +65,5 @@ The first release since 0.1.1 (June 2021). It ships correctness fixes and first-
 - psycopg 3 is not supported yet. With psycopg 3 installed, Django uses it and `executable_query` raises (planned for 1.0). 0.1.1 had this issue too.
 - `.none()` querysets raise `EmptyResultSet` (planned for 1.0). 0.1.1 had this issue too.
 
+[1.0.0]: https://github.com/JaredStufftGD/django-sql-compiler/releases/tag/v1.0.0
 [0.2.0]: https://github.com/JaredStufftGD/django-sql-compiler/releases/tag/v0.2.0
