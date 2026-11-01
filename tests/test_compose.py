@@ -11,7 +11,6 @@ from django.test import override_settings
 
 import sql_compiler
 from sql_compiler import ComposeResult, compose, composition, sql_and_params
-from sql_compiler import utils
 
 from tests import dbconfig
 from tests.db import compose_cases
@@ -31,13 +30,10 @@ REJECTED = {
     'q': (lambda: Q(n=1), 'Q'),
 }
 
-POSITIONAL = (
-    'compose template has a positional %s or a lone % at position {}; write a literal % as %%'
-)
+POSITIONAL = 'compose template has a positional %s or a lone % at position {}; write a literal % as %%'
 PAREN = 'compose template has a %(...) form other than %(name)s at position {}'
 TUPLE_MESSAGE = (
-    "compose slot 'p' holds a tuple; pass the QuerySet or a compose() result itself, "
-    "not a (sql, params) pair"
+    "compose slot 'p' holds a tuple; pass the QuerySet or a compose() result itself, not a (sql, params) pair"
 )
 
 
@@ -92,14 +88,12 @@ def test_reused_slots_repeat_their_params():
     sa, pa = sql_and_params(a)
     assert pa == (3, 6)
     template = (
-        'SELECT x.n FROM (%(a)s) x WHERE x.n <> %(v)s '
-        'AND x.id IN (SELECT y.id FROM (%(a)s) y WHERE y.n <> %(v)s)'
+        'SELECT x.n FROM (%(a)s) x WHERE x.n <> %(v)s AND x.id IN (SELECT y.id FROM (%(a)s) y WHERE y.n <> %(v)s)'
     )
     result = compose(template, a=a, v=7)
     assert result.params == (3, 6, 7, 3, 6, 7)
     assert result.sql == (
-        'SELECT x.n FROM ({0}) x WHERE x.n <> %s '
-        'AND x.id IN (SELECT y.id FROM ({0}) y WHERE y.n <> %s)'
+        'SELECT x.n FROM ({0}) x WHERE x.n <> %s AND x.id IN (SELECT y.id FROM ({0}) y WHERE y.n <> %s)'
     ).format(sa)
 
 
@@ -220,10 +214,15 @@ def test_compose_result_cannot_be_built_by_hand():
     'sql, params, alias, message',
     [
         pytest.param(b'SELECT 1', (), 'default', 'ComposeResult sql must be a str, got bytes', id='bytes_sql'),
-        pytest.param('SELECT 1', None, 'default', 'ComposeResult params must be a tuple, got NoneType', id='none_params'),
+        pytest.param(
+            'SELECT 1', None, 'default', 'ComposeResult params must be a tuple, got NoneType', id='none_params'
+        ),
         pytest.param('SELECT 1', [], 'default', 'ComposeResult params must be a tuple, got list', id='list_params'),
         pytest.param(
-            'SELECT 1', Pair('a', ()), 'default', 'ComposeResult params must be a tuple, got Pair',
+            'SELECT 1',
+            Pair('a', ()),
+            'default',
+            'ComposeResult params must be a tuple, got Pair',
             id='namedtuple_params',
         ),
         pytest.param('SELECT 1', (), None, 'ComposeResult alias must be a str, got NoneType', id='none_alias'),
@@ -381,9 +380,7 @@ def test_mixed_aliases_are_named(monkeypatch):
     live_qs = Thing.objects.using(dbconfig.SQLITE_LIVE_ALIAS).all()
     with pytest.raises(ValueError) as excinfo:
         compose('%(a)s UNION ALL %(b)s', a=default_qs, b=live_qs)
-    assert str(excinfo.value) == (
-        "compose slots must share one database alias, got 'default': a; 'sqlite_live': b"
-    )
+    assert str(excinfo.value) == ("compose slots must share one database alias, got 'default': a; 'sqlite_live': b")
     assert seen == []
     monkeypatch.undo()
     nested = compose('%(q)s', q=live_qs)

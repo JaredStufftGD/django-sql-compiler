@@ -130,9 +130,7 @@ def no_rows(alias):
 
 def values_pass_through(alias):
     vendor = connections[alias].vendor
-    template = (
-        'SELECT x.id AS id, CASE WHEN x.flag THEN 1 ELSE 0 END AS flag, x.dec AS amount FROM (%(q)s) x'
-    )
+    template = 'SELECT x.id AS id, CASE WHEN x.flag THEN 1 ELSE 0 END AS flag, x.dec AS amount FROM (%(q)s) x'
     result = compose(template, q=things(alias).filter(name="it's"))
     for row in (Flagged, dict):
         rows = fetch_rows(result, row)
@@ -162,8 +160,7 @@ def percent_literal(alias):
 
 def duplicate_columns(alias):
     template = (
-        'SELECT a.id AS id, b.id AS id, a.n AS n, b.n AS n, a.name AS name '
-        'FROM (%(a)s) a JOIN (%(b)s) b ON a.id = b.id'
+        'SELECT a.id AS id, b.id AS id, a.n AS n, b.n AS n, a.name AS name FROM (%(a)s) a JOIN (%(b)s) b ON a.id = b.id'
     )
     result = compose(template, a=things(alias).filter(n__lte=2), b=things(alias).filter(n__lte=2))
     message = "fetch_rows: the result has duplicate column names: 'id', 'n'"
@@ -224,14 +221,18 @@ def defaults_fill_missing(alias):
 
 def several_mismatches(alias):
     expect_mismatch(
-        alias, 'SELECT x.id AS id, x.name AS name, x.other AS other', IdNDay,
+        alias,
+        'SELECT x.id AS id, x.name AS name, x.other AS other',
+        IdNDay,
         "columns with no field: 'name', 'other'; fields with no column: 'day', 'n'",
     )
 
 
 def case_only_mismatch(alias):
     expect_mismatch(
-        alias, 'SELECT x.id AS id, x.n AS total', CaseTotal,
+        alias,
+        'SELECT x.id AS id, x.n AS total',
+        CaseTotal,
         "columns with no field: 'total'; fields with no column: 'Total'",
     )
 
@@ -259,7 +260,9 @@ def initvar_filled(alias):
 
 def init_false_and_classvar_are_extra(alias):
     expect_mismatch(
-        alias, 'SELECT x.id AS id, x.n AS n, x.n AS scaled, x.name AS kind', Kinded,
+        alias,
+        'SELECT x.id AS id, x.n AS n, x.n AS scaled, x.name AS kind',
+        Kinded,
         "columns with no field: 'kind', 'scaled'",
     )
 

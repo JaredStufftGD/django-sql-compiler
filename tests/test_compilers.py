@@ -7,7 +7,15 @@ import pytest
 from django.db.utils import ProgrammingError
 
 from sql_compiler import utils
-from sql_compiler.compilers import compilers, compiler_map, SUPPORTED_BACKENDS, MySQLCompiler, PostgresCompiler, PostgresTenantsCompiler, Psycopg2Compiler
+from sql_compiler.compilers import (
+    compilers,
+    compiler_map,
+    SUPPORTED_BACKENDS,
+    MySQLCompiler,
+    PostgresCompiler,
+    PostgresTenantsCompiler,
+    Psycopg2Compiler,
+)
 from sql_compiler.compilers.base import BaseSQLCompiler
 
 EXPECTED_BACKENDS = {
@@ -266,7 +274,8 @@ def test_postgres_python_encoding_psycopg3_cp1252_decodes_euro(monkeypatch, fake
 
 @pytest.mark.parametrize('client_encoding', sorted(NO_PYTHON_CODEC))
 def test_postgres_python_encoding_psycopg3_no_python_codec_raises_lookup_error(
-        monkeypatch, fake_psycopg, client_encoding):
+    monkeypatch, fake_psycopg, client_encoding
+):
     monkeypatch.setattr(PostgresCompiler, 'encoding_map', no_psycopg2_map)
     connection = FakeDjangoConnection(FakePsycopg3Connection(client_encoding))
     with pytest.raises(LookupError) as excinfo:
@@ -359,8 +368,7 @@ def test_base_python_encoding_not_implemented():
 def test_importing_package_does_not_import_db_drivers():
     # Fresh interpreter, so the result does not depend on what other tests imported
     code = (
-        'import sys; import sql_compiler; '
-        'sys.exit(1 if {"MySQLdb", "psycopg", "psycopg2"} & set(sys.modules) else 0)'
+        'import sys; import sql_compiler; sys.exit(1 if {"MySQLdb", "psycopg", "psycopg2"} & set(sys.modules) else 0)'
     )
     assert subprocess.run([sys.executable, '-c', code]).returncode == 0
 
@@ -370,27 +378,31 @@ def test_mogrify_param_mismatch_raises_programming_error():
         MySQLCompiler().mogrify(StubCursor(), 'SELECT %s, %s', ('a',))
 
 
-@pytest.mark.parametrize('query, args, cause_type', [
-    ('SELECT %s, %s', ('a',), TypeError),
-    ('SELECT %s', ('a', 'b'), TypeError),
-    ('SELECT %(x)s', ('a',), TypeError),
-    ('SELECT %s', {'x': 1}, TypeError),
-    ('SELECT %s %(x)s', {'x': 1}, TypeError),
-    ('SELECT %(missing_key)s', {'other': 1}, KeyError),
-    ('SELECT 100%', (), ValueError),
-    ("SELECT 'a%z'", ('a',), ValueError),
-    ('SELECT %(x', {'x': 1}, ValueError),
-], ids=[
-    'too_few',
-    'too_many',
-    'named_placeholder_sequence_params',
-    'positional_placeholder_dict_params',
-    'mixed_placeholders_dict_params',
-    'missing_key',
-    'stray_percent',
-    'unsupported_format_char',
-    'unterminated_key',
-])
+@pytest.mark.parametrize(
+    'query, args, cause_type',
+    [
+        ('SELECT %s, %s', ('a',), TypeError),
+        ('SELECT %s', ('a', 'b'), TypeError),
+        ('SELECT %(x)s', ('a',), TypeError),
+        ('SELECT %s', {'x': 1}, TypeError),
+        ('SELECT %s %(x)s', {'x': 1}, TypeError),
+        ('SELECT %(missing_key)s', {'other': 1}, KeyError),
+        ('SELECT 100%', (), ValueError),
+        ("SELECT 'a%z'", ('a',), ValueError),
+        ('SELECT %(x', {'x': 1}, ValueError),
+    ],
+    ids=[
+        'too_few',
+        'too_many',
+        'named_placeholder_sequence_params',
+        'positional_placeholder_dict_params',
+        'mixed_placeholders_dict_params',
+        'missing_key',
+        'stray_percent',
+        'unsupported_format_char',
+        'unterminated_key',
+    ],
+)
 def test_mogrify_formatting_failure_raises_programming_error(query, args, cause_type):
     with pytest.raises(ProgrammingError) as excinfo:
         MySQLCompiler().mogrify(StubCursor(), query, args)

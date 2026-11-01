@@ -18,7 +18,8 @@ EXPECTED['postgres'] = {
     'backslash': POSTGRES_SELECT + 'WHERE "sqlcompiler_thing"."name" = \'back\\slash\'',
     'percent_literal_param': POSTGRES_SELECT + 'WHERE "sqlcompiler_thing"."name"::text LIKE \'%\\%%\'',
     'percent_empty_params': POSTGRES_SELECT + "WHERE (name LIKE 'plain%')",
-    'percent_with_params': POSTGRES_SELECT + 'WHERE ("sqlcompiler_thing"."n" > 0 AND "sqlcompiler_thing"."name"::text LIKE \'%\' || REPLACE(REPLACE(REPLACE(("sqlcompiler_thing"."other"), E\'\\\\\', E\'\\\\\\\\\'), E\'%\', E\'\\\\%\'), E\'_\', E\'\\\\_\') || \'%\')',
+    'percent_with_params': POSTGRES_SELECT
+    + "WHERE (\"sqlcompiler_thing\".\"n\" > 0 AND \"sqlcompiler_thing\".\"name\"::text LIKE '%' || REPLACE(REPLACE(REPLACE((\"sqlcompiler_thing\".\"other\"), E'\\\\', E'\\\\\\\\'), E'%', E'\\\\%'), E'_', E'\\\\_') || '%')",
     'null': POSTGRES_SELECT + 'WHERE "sqlcompiler_thing"."n" IS NULL',
     'null_param': POSTGRES_SELECT + 'WHERE (COALESCE(n, -1) = COALESCE(NULL, -1))',
     'int': POSTGRES_SELECT + 'WHERE "sqlcompiler_thing"."n" = 1',
@@ -45,7 +46,8 @@ EXPECTED['mysql'] = {
     'backslash': MYSQL_SELECT + "WHERE `sqlcompiler_thing`.`name` = 'back\\\\slash'",
     'percent_literal_param': MYSQL_SELECT + "WHERE `sqlcompiler_thing`.`name` LIKE BINARY '%\\\\%%'",
     'percent_empty_params': MYSQL_SELECT + "WHERE (name LIKE 'plain%')",
-    'percent_with_params': MYSQL_SELECT + "WHERE (`sqlcompiler_thing`.`n` > 0 AND `sqlcompiler_thing`.`name` LIKE BINARY CONCAT('%', REPLACE(REPLACE(REPLACE((`sqlcompiler_thing`.`other`), '\\\\', '\\\\\\\\'), '%', '\\%'), '_', '\\_'), '%'))",
+    'percent_with_params': MYSQL_SELECT
+    + "WHERE (`sqlcompiler_thing`.`n` > 0 AND `sqlcompiler_thing`.`name` LIKE BINARY CONCAT('%', REPLACE(REPLACE(REPLACE((`sqlcompiler_thing`.`other`), '\\\\', '\\\\\\\\'), '%', '\\%'), '_', '\\_'), '%'))",
     'null': MYSQL_SELECT + 'WHERE `sqlcompiler_thing`.`n` IS NULL',
     'null_param': MYSQL_SELECT + 'WHERE (COALESCE(n, -1) = COALESCE(NULL, -1))',
     'int': MYSQL_SELECT + 'WHERE `sqlcompiler_thing`.`n` = 1',

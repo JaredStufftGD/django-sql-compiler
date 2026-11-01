@@ -8,6 +8,7 @@ from .cases import ROWS
 from .expected import EXPECTED, pinned_sql
 from .models import Thing
 
+
 def test_non_ascii_param_is_not_garbled(db_under_test, things):
     qs = Thing.objects.filter(name='café')
     assert qs.executable_query == pinned_sql(db_under_test, 'non_ascii')
@@ -19,7 +20,10 @@ def test_non_ascii_param_is_not_garbled(db_under_test, things):
     assert 0 < len(got) < len(ROWS)
 
 
-gro10 = pytest.mark.skipif(not dbconfig.gro10_ready(), reason='GRO-10 pin needs default=PostgreSQL via psycopg2 and MySQL as alias other; run uv run --exact --group pg2 --group mysql pytest')
+gro10 = pytest.mark.skipif(
+    not dbconfig.gro10_ready(),
+    reason='GRO-10 pin needs default=PostgreSQL via psycopg2 and MySQL as alias other; run uv run --exact --group pg2 --group mysql pytest',
+)
 
 
 class ThingReadsToOther:
@@ -49,4 +53,3 @@ def test_router_selected_alias_compiles_for_its_own_backend(things_other):
         assert qs.db == 'other'
         assert qs.executable_query == EXPECTED['mysql']['single_quote']
         assert_runs_on_other(qs, qs.executable_query)
-

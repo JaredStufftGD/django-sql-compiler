@@ -35,15 +35,37 @@ EMPTY_CASES = [
     ('none', lambda: Thing.objects.none(), lambda: Thing.objects.all()),
     ('in_empty', lambda: Thing.objects.filter(id__in=[]), lambda: Thing.objects.all()),
     ('values', lambda: Thing.objects.filter(id__in=[]).values('name'), lambda: Thing.objects.values('name')),
-    ('values_list', lambda: Thing.objects.filter(id__in=[]).values_list('pk', 'name'), lambda: Thing.objects.values_list('pk', 'name')),
-    ('union_all_empty',
-     lambda: Thing.objects.filter(id__in=[]).union(Thing.objects.filter(name__in=[])),
-     lambda: Thing.objects.filter(name='plain').union(Thing.objects.filter(name="it's"))),
-    ('subquery_none', lambda: Thing.objects.filter(pk__in=Thing.objects.none()), lambda: Thing.objects.filter(pk__in=Thing.objects.all())),
-    ('empty_having', lambda: Thing.objects.annotate(c=Count('id')).filter(c__in=[]), lambda: Thing.objects.annotate(c=Count('id'))),
-    ('aggregate_without_group_by', lambda: Thing.objects.values(x=Value(1)).annotate(c=Count('id')).filter(c__in=[]), lambda: Thing.objects.values(x=Value(1)).annotate(c=Count('id'))),
+    (
+        'values_list',
+        lambda: Thing.objects.filter(id__in=[]).values_list('pk', 'name'),
+        lambda: Thing.objects.values_list('pk', 'name'),
+    ),
+    (
+        'union_all_empty',
+        lambda: Thing.objects.filter(id__in=[]).union(Thing.objects.filter(name__in=[])),
+        lambda: Thing.objects.filter(name='plain').union(Thing.objects.filter(name="it's")),
+    ),
+    (
+        'subquery_none',
+        lambda: Thing.objects.filter(pk__in=Thing.objects.none()),
+        lambda: Thing.objects.filter(pk__in=Thing.objects.all()),
+    ),
+    (
+        'empty_having',
+        lambda: Thing.objects.annotate(c=Count('id')).filter(c__in=[]),
+        lambda: Thing.objects.annotate(c=Count('id')),
+    ),
+    (
+        'aggregate_without_group_by',
+        lambda: Thing.objects.values(x=Value(1)).annotate(c=Count('id')).filter(c__in=[]),
+        lambda: Thing.objects.values(x=Value(1)).annotate(c=Count('id')),
+    ),
     ('empty_slice', lambda: Thing.objects.all()[5:5], lambda: Thing.objects.all()),
-    ('distinct_ordered', lambda: Thing.objects.filter(id__in=[]).values('name').order_by('id').distinct(), lambda: Thing.objects.values('name').order_by('id').distinct()),
+    (
+        'distinct_ordered',
+        lambda: Thing.objects.filter(id__in=[]).values('name').order_by('id').distinct(),
+        lambda: Thing.objects.values('name').order_by('id').distinct(),
+    ),
 ]
 EMPTY_IDS = [case_id for case_id, _, _ in EMPTY_CASES]
 
@@ -88,7 +110,10 @@ def test_empty_single_column_sql_works_as_in_subquery(db_under_test, things):
 
 
 # Skips outside the combined psycopg2 + MySQL run (including under psycopg 3), because the 'other' alias exists only there.
-gro10 = pytest.mark.skipif(not dbconfig.gro10_ready(), reason='GRO-10 pin needs default=PostgreSQL via psycopg2 and MySQL as alias other; run uv run --exact --group pg2 --group mysql pytest')
+gro10 = pytest.mark.skipif(
+    not dbconfig.gro10_ready(),
+    reason='GRO-10 pin needs default=PostgreSQL via psycopg2 and MySQL as alias other; run uv run --exact --group pg2 --group mysql pytest',
+)
 
 
 @gro10

@@ -53,9 +53,7 @@ def parse_url(env_name, value, schemes):
     except ValueError:
         raise pytest.UsageError('{} is not a valid database URL'.format(env_name))
     if parts.scheme not in schemes or not host or not parts.path.lstrip('/'):
-        raise pytest.UsageError(
-            '{} must be a {} URL with host and database name'.format(env_name, '/'.join(schemes))
-        )
+        raise pytest.UsageError('{} must be a {} URL with host and database name'.format(env_name, '/'.join(schemes)))
     if parts.fragment:
         raise pytest.UsageError('{} must not contain a #fragment'.format(env_name))
     options = {}
@@ -96,7 +94,7 @@ def probe(driver, config):
             user=config['USER'],
             password=config['PASSWORD'],
             connect_timeout=3,
-            **connect
+            **connect,
         )
     except (module.Error, OSError, UnicodeError) as exc:
         return 'cannot connect at {}:{} ({})'.format(config['HOST'], config['PORT'], type(exc).__name__)
@@ -120,10 +118,26 @@ def build(environ):
         )
 
     specs = (
-        ('postgres', 'PostgreSQL', POSTGRES_ENV, POSTGRES_DEFAULT_URL, ('postgres', 'postgresql'),
-         PostgresCompiler.backend_name, postgres_driver(), '--group pg2 or pg3'),
-        ('mysql', 'MySQL', MYSQL_ENV, MYSQL_DEFAULT_URL, ('mysql',),
-         MySQLCompiler.backend_name, mysql_driver(), '--group mysql'),
+        (
+            'postgres',
+            'PostgreSQL',
+            POSTGRES_ENV,
+            POSTGRES_DEFAULT_URL,
+            ('postgres', 'postgresql'),
+            PostgresCompiler.backend_name,
+            postgres_driver(),
+            '--group pg2 or pg3',
+        ),
+        (
+            'mysql',
+            'MySQL',
+            MYSQL_ENV,
+            MYSQL_DEFAULT_URL,
+            ('mysql',),
+            MySQLCompiler.backend_name,
+            mysql_driver(),
+            '--group mysql',
+        ),
     )
     state = {'server_side_binding': binding == '1'}
     settings_for = {}

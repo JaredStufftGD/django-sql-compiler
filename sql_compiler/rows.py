@@ -18,10 +18,7 @@ def constructor_fields(row):
         # them apart under string annotations (from __future__ import annotations). Guarded in tests/test_rows.py.
         if not field.init or field._field_type is dataclasses._FIELD_CLASSVAR:
             continue
-        fields[name] = (
-            field.default is not dataclasses.MISSING
-            or field.default_factory is not dataclasses.MISSING
-        )
+        fields[name] = field.default is not dataclasses.MISSING or field.default_factory is not dataclasses.MISSING
     return fields
 
 
@@ -30,7 +27,6 @@ def names_list(names):
 
 
 def fetch_rows(result, row):
-
     """
     Runs a compose() result once on `result.alias` through Django's cursor and returns a list of rows
     (an empty list when there are no rows). Pass `dict` for dicts keyed by column name in select order,
@@ -75,9 +71,7 @@ def fetch_rows(result, row):
         names = [column[0] for column in description]
         duplicated = {name for name in names if names.count(name) > 1}
         if duplicated:
-            raise ValueError(
-                'fetch_rows: the result has duplicate column names: {}'.format(names_list(duplicated))
-            )
+            raise ValueError('fetch_rows: the result has duplicate column names: {}'.format(names_list(duplicated)))
         if not is_dict:
             fields = constructor_fields(row)
             extra = set(names) - set(fields)

@@ -9,7 +9,10 @@ from tests import dbconfig
 from . import compose_cases
 from .models import Thing
 
-gro10 = pytest.mark.skipif(not dbconfig.gro10_ready(), reason='GRO-10 pin needs default=PostgreSQL via psycopg2 and MySQL as alias other; run uv run --exact --group pg2 --group mysql pytest')
+gro10 = pytest.mark.skipif(
+    not dbconfig.gro10_ready(),
+    reason='GRO-10 pin needs default=PostgreSQL via psycopg2 and MySQL as alias other; run uv run --exact --group pg2 --group mysql pytest',
+)
 
 
 class ThingReadsToOther:

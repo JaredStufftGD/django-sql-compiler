@@ -3,7 +3,6 @@ from .queryset import SQLCompilerQuerySet
 
 
 class SQLCompilerManager(Manager):
-
     """
     Wraps the SQLCompilerQuerySet object in a manager. Use this manager for any model
     for which you'd like to retrieve an executable SQL query for subsequent query sets.

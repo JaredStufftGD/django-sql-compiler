@@ -21,9 +21,7 @@ def cte_join(alias):
     b = t.filter(n__lte=5).values('id', 'n')
     a_sql, a_params = sql_and_params(a)
     b_sql, b_params = sql_and_params(b)
-    result = compose(
-        'WITH a AS (%(a)s), b AS (%(b)s) SELECT a.n FROM a JOIN b ON a.id = b.id ORDER BY a.n', a=a, b=b
-    )
+    result = compose('WITH a AS (%(a)s), b AS (%(b)s) SELECT a.n FROM a JOIN b ON a.id = b.id ORDER BY a.n', a=a, b=b)
     ref_sql = 'WITH a AS ({}), b AS ({}) SELECT a.n FROM a JOIN b ON a.id = b.id ORDER BY a.n'.format(a_sql, b_sql)
     return {
         'result': result,
@@ -40,9 +38,7 @@ def reordered_slots(alias):
     b = t.filter(n__lte=5).values('id', 'n')
     a_sql, a_params = sql_and_params(a)
     b_sql, b_params = sql_and_params(b)
-    result = compose(
-        'WITH b AS (%(b)s), a AS (%(a)s) SELECT a.n FROM a JOIN b ON a.id = b.id ORDER BY a.n', a=a, b=b
-    )
+    result = compose('WITH b AS (%(b)s), a AS (%(a)s) SELECT a.n FROM a JOIN b ON a.id = b.id ORDER BY a.n', a=a, b=b)
     ref_sql = 'WITH b AS ({}), a AS ({}) SELECT a.n FROM a JOIN b ON a.id = b.id ORDER BY a.n'.format(b_sql, a_sql)
     return {
         'result': result,
@@ -60,8 +56,7 @@ def reused_queryset(alias):
     a_sql, a_params = sql_and_params(a)
     b_sql, b_params = sql_and_params(b)
     result = compose(
-        'SELECT (SELECT COUNT(*) FROM (%(a)s) x), (SELECT COUNT(*) FROM (%(b)s) y), '
-        '(SELECT MAX(z.n) FROM (%(a)s) z)',
+        'SELECT (SELECT COUNT(*) FROM (%(a)s) x), (SELECT COUNT(*) FROM (%(b)s) y), (SELECT MAX(z.n) FROM (%(a)s) z)',
         a=a,
         b=b,
     )
@@ -91,8 +86,7 @@ def reused_value(alias):
         lo=2,
     )
     ref_sql = (
-        'SELECT x.n FROM ({}) x WHERE x.n > %s '
-        'AND x.id IN (SELECT y.id FROM ({}) y WHERE y.n <> %s) ORDER BY x.n'
+        'SELECT x.n FROM ({}) x WHERE x.n > %s AND x.id IN (SELECT y.id FROM ({}) y WHERE y.n <> %s) ORDER BY x.n'
     ).format(a_sql, b_sql)
     return {
         'result': result,
@@ -196,15 +190,12 @@ def empty_queryset(alias):
     e_sql, e_params = sql_and_params(e)
     a_sql, a_params = sql_and_params(a)
     result = compose(
-        'SELECT (SELECT COUNT(*) FROM (%(e)s) x), '
-        '(SELECT COUNT(*) FROM (%(a)s) y WHERE y.n > %(lo)s)',
+        'SELECT (SELECT COUNT(*) FROM (%(e)s) x), (SELECT COUNT(*) FROM (%(a)s) y WHERE y.n > %(lo)s)',
         e=e,
         a=a,
         lo=4,
     )
-    ref_sql = 'SELECT (SELECT COUNT(*) FROM ({}) x), (SELECT COUNT(*) FROM ({}) y WHERE y.n > %s)'.format(
-        e_sql, a_sql
-    )
+    ref_sql = 'SELECT (SELECT COUNT(*) FROM ({}) x), (SELECT COUNT(*) FROM ({}) y WHERE y.n > %s)'.format(e_sql, a_sql)
     return {
         'result': result,
         'ref_sql': ref_sql,
@@ -275,9 +266,7 @@ def check_scenario(alias, scenario_id):
 
 
 def check_raw(alias):
-    result = compose(
-        'SELECT * FROM (%(q)s) x WHERE x.n > %(lo)s', q=Thing.objects.using(alias).filter(n__lte=6), lo=2
-    )
+    result = compose('SELECT * FROM (%(q)s) x WHERE x.n > %(lo)s', q=Thing.objects.using(alias).filter(n__lte=6), lo=2)
     objs = list(Thing.objects.raw(*result, using=result.alias))
     expected = set(Thing.objects.using(alias).filter(n__lte=6, n__gt=2).values_list('pk', flat=True))
     assert len(expected) == 4

@@ -53,7 +53,7 @@ class QuotedMixed:
     d: 'int' = dataclasses.field(init=False, default=0)
     e: 'typing.ClassVar[int]' = 1
     f: 'dataclasses.InitVar[int]' = 2
-    g: 'Unresolvable' = None
+    g: 'Unresolvable' = None  # noqa: F821  # deliberately unresolvable: fetch_rows must not resolve annotations
 
     def __post_init__(self, b, f):
         self.b_seen = b
@@ -107,7 +107,6 @@ def spy_on_cursor(monkeypatch):
 
 
 class FakeCursor:
-
     def __init__(self, description, rows=()):
         self.description = description
         self.rows = rows
@@ -246,8 +245,7 @@ def test_private_dataclasses_names_still_exist():
 @pytest.mark.parametrize('cls', [Mixed, QuotedMixed], ids=['eager', 'quoted'])
 def test_dataclasses_classvar_classification(cls):
     classvars = {
-        name for name, field in cls.__dataclass_fields__.items()
-        if field._field_type is dataclasses._FIELD_CLASSVAR
+        name for name, field in cls.__dataclass_fields__.items() if field._field_type is dataclasses._FIELD_CLASSVAR
     }
     assert classvars == {'e'}
 

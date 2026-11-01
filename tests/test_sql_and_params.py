@@ -152,9 +152,7 @@ def test_empty_pair_returns_zero_rows_on_sqlite(things_sqlite, shape_id):
     base = Thing.objects.using(things_sqlite)
     empty_qs = empty_factory(base)
     assert list(empty_qs) == []
-    shapes.assert_empty_pair(
-        things_sqlite, sql_and_params(empty_qs), sql_and_params(counterpart_factory(base))
-    )
+    shapes.assert_empty_pair(things_sqlite, sql_and_params(empty_qs), sql_and_params(counterpart_factory(base)))
 
 
 def test_empty_slice_drops_its_limits_on_sqlite(things_sqlite):
