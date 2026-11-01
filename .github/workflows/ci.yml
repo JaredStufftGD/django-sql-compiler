@@ -84,7 +84,7 @@ jobs:
       DJANGO_LINE: ${{ matrix.django }}
       PYTHON_LINE: ${{ matrix.python }}
       DJANGO_SPEC: django~=${{ matrix.django }}.0
-      MUST_PASS_FILES: "tests/test_sql_and_params.py tests/test_compose.py tests/test_rows.py"
+      MUST_PASS_FILES: "tests/test_sql_and_params.py tests/test_compose.py tests/test_rows.py tests/test_readme.py"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -103,7 +103,7 @@ jobs:
           "
       - name: Run the no-DB suite
         run: uv run --locked --with "$DJANGO_SPEC" pytest -rA 2>&1 | tee pytest.log
-      - name: Check the SQLite sql_and_params and compose tests all passed and nothing xfailed
+      - name: Check the must-pass test files all passed and nothing xfailed
         run: |
           # Runtime skips are reported at the raising line, not this file, so compare PASSED lines with the collected count.
           # An empty list would skip the loop below and pass the step.
@@ -168,7 +168,7 @@ jobs:
             binding: ""
             mysql: false
             allowed: "no-DB test: needs the unsupported SQLite default alias|MySQL unavailable: no driver installed|GRO-10 pin needs default=PostgreSQL"
-            must_pass: "tests/test_sql_and_params.py tests/test_compose.py tests/db/test_compose.py tests/test_rows.py tests/db/test_rows.py"
+            must_pass: "tests/test_sql_and_params.py tests/test_compose.py tests/db/test_compose.py tests/test_rows.py tests/db/test_rows.py tests/test_readme.py tests/db/test_readme.py"
             expect_ssb: ""
           - name: pg3
             services: postgres
@@ -178,7 +178,7 @@ jobs:
             binding: ""
             mysql: false
             allowed: "no-DB test: needs the unsupported SQLite default alias|MySQL unavailable: no driver installed|GRO-10 pin needs default=PostgreSQL"
-            must_pass: "tests/test_sql_and_params.py tests/test_compose.py tests/db/test_compose.py tests/test_rows.py tests/db/test_rows.py"
+            must_pass: "tests/test_sql_and_params.py tests/test_compose.py tests/db/test_compose.py tests/test_rows.py tests/db/test_rows.py tests/test_readme.py tests/db/test_readme.py"
             expect_ssb: ""
           - name: pg3 server-side binding
             services: postgres
@@ -188,7 +188,7 @@ jobs:
             binding: "1"
             mysql: false
             allowed: "no-DB test: needs the unsupported SQLite default alias|MySQL unavailable: no driver installed|GRO-10 pin needs default=PostgreSQL"
-            must_pass: "tests/test_sql_and_params.py tests/test_compose.py tests/db/test_compose.py tests/test_rows.py tests/db/test_rows.py"
+            must_pass: "tests/test_sql_and_params.py tests/test_compose.py tests/db/test_compose.py tests/test_rows.py tests/db/test_rows.py tests/test_readme.py tests/db/test_readme.py"
             expect_ssb: "1"
           - name: mysql
             services: mysql
@@ -198,7 +198,7 @@ jobs:
             binding: ""
             mysql: true
             allowed: "no-DB test: needs the unsupported SQLite default alias|PostgreSQL unavailable: no driver installed|GRO-10 pin needs default=PostgreSQL"
-            must_pass: "tests/test_sql_and_params.py tests/test_compose.py tests/db/test_compose.py tests/test_rows.py tests/db/test_rows.py"
+            must_pass: "tests/test_sql_and_params.py tests/test_compose.py tests/db/test_compose.py tests/test_rows.py tests/db/test_rows.py tests/test_readme.py tests/db/test_readme.py"
             expect_ssb: ""
           - name: combined pg2 + mysql
             services: postgres mysql
@@ -208,7 +208,7 @@ jobs:
             binding: ""
             mysql: true
             allowed: "no-DB test: needs the unsupported SQLite default alias|MySQL not under test: it is the 'other' alias"
-            must_pass: "tests/test_sql_and_params.py tests/test_compose.py tests/db/test_compose.py tests/test_rows.py tests/db/test_rows.py tests/db/test_compose_other.py"
+            must_pass: "tests/test_sql_and_params.py tests/test_compose.py tests/db/test_compose.py tests/test_rows.py tests/db/test_rows.py tests/test_readme.py tests/db/test_readme.py tests/db/test_compose_other.py"
             expect_ssb: ""
     env:
       SQLCOMPILER_TEST_POSTGRES_URL: ${{ matrix.pg_url }}
