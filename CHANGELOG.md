@@ -2,6 +2,13 @@
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- The README was rewritten for readers who think in SQL: an SQL-first pitch, a recursive category-tree headline example (the ORM filters, hand-written `WITH RECURSIVE` SQL does the recursion and totals, through `compose()` and `fetch_rows()`), the leaderboard shown next to its plain-ORM version, new "Why not `as_sql()`?", "Compared to" and "Get a queryset back" (django-cte) sections, a one-line note that the package is unrelated to Django's internal `SQLCompiler`, and every previous caveat kept in a reference section.
+- The PyPI summary (`description`) changed from "Use Django querysets inside raw SQL, safely." to "Write SQL where SQL is natural and reuse Django querysets inside it, with every value bound by the database driver.", and the keywords gained "recursive cte" and "analytics".
+
 ## [1.0.0] - 2026-11-01
 
 The first release with safe SQL composition: `sql_and_params`, `compose`/`ComposeResult` and `fetch_rows` turn querysets into parameterized SQL, embed them in hand-written queries and return typed rows, and psycopg 3 is now supported. `executable_query` users upgrading from 0.2.0 get no breaking changes. Two behavior changes are worth knowing: empty querysets now return zero-row SQL instead of raising `EmptyResultSet` (see Fixed), and a PostgreSQL connection whose raw connection is neither psycopg2 nor psycopg 3 now raises `NotImplementedError`; stock Django never creates one (see Changed).
