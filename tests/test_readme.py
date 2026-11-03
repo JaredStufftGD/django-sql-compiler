@@ -1,4 +1,5 @@
 import ast
+import re
 
 import pytest
 from django.db import connections
@@ -99,3 +100,123 @@ def test_readme_parse_guards():
         readme_example.with_meta(
             ast.parse('class Category(models.Model):\n    class Meta:\n        pass\n'), {'Category': 'x'}
         )
+
+
+HEADLINE = '## Walk a category tree in SQL, filter it with the ORM'
+SECTION_ORDER = [
+    'Installation',
+    'Walk a category tree in SQL, filter it with the ORM',
+    'Prefer SQL? Write it as SQL.',
+    'Why not `as_sql()`?',
+    'Compared to',
+    'Get a queryset back',
+    'Reference',
+]
+COMPARED_FIRST_CELLS = [
+    'django-sql-compiler',
+    'Plain Django (cursor, raw())',
+    'django-cte',
+    'View + unmanaged model',
+    'SQLAlchemy Core / aldjemy',
+    'aiosql',
+]
+COMPARED_COLUMNS = ['Reuses querysets', 'Outer query in SQL', 'Multi-database', 'Queryset back', 'Literal SQL']
+
+
+def prose_lines(text):
+    lines = []
+    in_fence = False
+    for line in text.split('\n'):
+        if line.startswith('```'):
+            in_fence = not in_fence
+        elif not in_fence:
+            lines.append(line)
+    return lines
+
+
+def headings(text):
+    found = []
+    for line in prose_lines(text):
+        match = re.match(r'^(#+) (.+)$', line)
+        if match:
+            found.append((len(match.group(1)), match.group(2)))
+    return found
+
+
+def section_text(text, heading):
+    head, rest = text.split('\n' + heading + '\n', 1)
+    return rest.split('\n#', 1)[0]
+
+
+def bullet_lines(lines):
+    return [line for line in lines if re.match(r'^(- |\* |\d+\. )', line)]
+
+
+def test_readme_front_page():
+    front = readme_example.README_TEXT.split('\n' + HEADLINE + '\n', 1)[0]
+    prose = prose_lines(front)
+
+    assert headings(front) == [(1, 'Django SQL Compiler'), (2, 'Installation')]
+    assert 'pip install django-sql-compiler' in front
+    assert 'INSTALLED_APPS' in front
+    assert 'django.db.models.sql.compiler.SQLCompiler' in front
+    assert bullet_lines(prose) == []
+    assert 'SQLCompilerManager' not in front
+    assert "can't express" not in front.lower()
+    assert 'cannot express' not in front.lower()
+
+
+def test_readme_section_order():
+    assert [title for level, title in headings(readme_example.README_TEXT) if level == 2] == SECTION_ORDER
+
+
+def test_readme_no_bullets_above_reference():
+    text = readme_example.README_TEXT
+    above = text.split('\n' + HEADLINE + '\n', 1)[1].split('\n## Reference\n', 1)[0]
+
+    assert bullet_lines(prose_lines(above)) == []
+
+
+def test_readme_cross_references_exist():
+    prose = '\n'.join(prose_lines(readme_example.README_TEXT))
+    titles = {title for level, title in headings(readme_example.README_TEXT)}
+    references = re.findall(r'(?:see|under) "([^"]+)"', prose)
+
+    assert references
+    assert [reference for reference in references if reference not in titles] == []
+
+
+def test_readme_compared_to_table():
+    section = section_text(readme_example.README_TEXT, '## Compared to')
+    rows = [
+        [cell.strip() for cell in line.strip().strip('|').split('|')]
+        for line in section.split('\n')
+        if line.startswith('|')
+    ]
+    header, data = rows[0], rows[2:]
+
+    assert header[1:] == COMPARED_COLUMNS
+    assert [row[0] for row in data] == COMPARED_FIRST_CELLS
+    for row in data:
+        assert len(row) == 6
+        for cell in row[1:5]:
+            assert re.match(r'^(Yes|No)\b', cell), cell
+        literal = row[5]
+        assert any(word in literal for word in ('driver', 'display only', 'literal_binds')) or literal == 'None', (
+            literal
+        )
+    assert not re.search(r'\d+\.\d+', section)
+    assert 'download' not in section.lower()
+
+
+def test_readme_why_not_as_sql():
+    section = section_text(readme_example.README_TEXT, '## Why not `as_sql()`?')
+
+    for phrase in ('EmptyResultSet', '%%', 'sql_with_params', 'dictfetchall'):
+        assert phrase in section
+
+
+def test_readme_executable_query_keeps_phrase():
+    section = section_text(readme_example.README_TEXT, '### Finished literal SQL: executable_query')
+
+    assert 'usable SQL from a QuerySet' in section
