@@ -219,6 +219,25 @@ orm_rows = list(
 
 In the SQL version, `region`, `start`, `end` and `min_total_cents` are all params that the driver binds. Params follow placeholder order: the CTE params first, then the HAVING value. Params are adapted by the backend, so they are not printed here. The handwritten SQL references only the CTE names, so no table names are needed. Output columns are aliased explicitly in lowercase, because `fetch_rows` matches names exactly. The template is trusted SQL written by you, and a literal `%` in it is written `%%`. The package does not validate SQL or make interpolated identifiers safe.
 
+## Why not `as_sql()`?
+Getting a queryset's SQL out of Django takes a few lines (`qs.query.sql_with_params()`, or a compiler's `as_sql()`), and the logic in this package is small too. The value is in getting four cases right. With the wrong alias, `qs.query.sql_with_params()` compiles for the default database, so a queryset sent elsewhere with `.using()` or a router gets SQL for the wrong database, while this package compiles for `qs.db`. For empty querysets such as `.none()` or `filter(id__in=[])`, Django raises `EmptyResultSet` instead of returning SQL, while this package returns SQL that matches no rows with the same columns. A literal `%` in hand-written SQL has to be written `%%` before the driver formats the string, and `compose()` keeps `%%` literal through nesting and rejects a lone `%` or a positional `%s` with its position. And with several querysets and values, params must follow their placeholders' order, including inside nested results, which `compose()` assembles in one left-to-right pass (repeating params for a reused slot). These cases are tested on SQLite, PostgreSQL (psycopg2 and psycopg 3) and MySQL.
+
+Django's `dictfetchall` recipe gives dicts; `fetch_rows` can also build dataclasses and checks the column names against the fields before any row is built.
+
+## Compared to
+This table compares capabilities only, for the ways to combine ORM querysets with hand-written SQL.
+
+| | Reuses querysets | Outer query in SQL | Multi-database | Queryset back | Literal SQL |
+|---|---|---|---|---|---|
+| django-sql-compiler | Yes (`compose()` slots) | Yes | Yes (compiled and run for the queryset's alias) | No: rows (dataclasses or dicts); see "Get a queryset back" for django-cte | Yes: `executable_query`, escaped by the driver |
+| Plain Django (cursor, raw()) | No (by hand with `qs.query.sql_with_params()`; see "Why not `as_sql()`?") | Yes (`cursor.execute()`, `raw()`) | No (by hand; `sql_with_params()` compiles for the default database) | No (`raw()` returns a RawQuerySet, which can't be chained) | `str(qs.query)`: display only, not valid SQL |
+| django-cte | Yes (as CTEs in an ORM query) | No: the outer query is the ORM; SQL goes in through `raw_cte_sql` | Yes (`using()` or routers) | Yes | `str(qs.query)`: display only, not valid SQL |
+| View + unmanaged model | No (the view's SQL is written by hand, usually in a migration) | Yes (as the view body) | Yes (where the view exists; routers apply to the model) | Yes | None |
+| SQLAlchemy Core / aldjemy | No (queries are rebuilt in SQLAlchemy; aldjemy maps models, not querysets) | No (SQLAlchemy expressions; hand-written SQL only through `text()`) | No (SQLAlchemy engines, not Django's aliases or routers) | No | `literal_binds`: its own escaping, limited types |
+| aiosql | No | Yes (SQL files) | No (you pass a connection) | No | None |
+
+django-cte is the mirror image of this package (SQL inside the ORM, where this package puts the ORM inside SQL), not a competitor. The two combine, see "Get a queryset back".
+
 ## Get a queryset back
 django-cte goes the other way, SQL inside the ORM, and combines with this package: its `raw_cte_sql` accepts a `compose()` result and gives back a chainable queryset. This block continues the tree example above (it reuses `root` and `categories`) and needs django-cte 4.0 or newer.
 
@@ -252,7 +271,7 @@ cheap.count()   # 4
 
 django-cte documents the params as a list, so pass `list(subtree.params)`. The SQL is compiled for `subtree.alias`, and django-cte does not check that the outer queryset runs there, so evaluate it on that alias (add `.using(subtree.alias)` when a router could send it elsewhere). The CTE has to be joined to a model (`cte.queryset()` does not work with `raw_cte_sql`), which is why the rows are `Product` instances.
 
-## Choosing an API
+## Reference
 
 `sql_and_params()`, `compose()` and `fetch_rows()` work on plain Django querysets with no custom manager. `SQLCompilerManager` is only needed for `qs.sql_and_params()` and `executable_query`.
 
@@ -363,8 +382,8 @@ It works only on the ENGINEs and drivers listed under "Backend and version suppo
 - Pass `using=` (`result.alias` or `qs.db`) to `raw()`: `Model.objects.raw` without it runs on the router's or default alias.
 - Never use the raw driver cursor.
 
-## Backend and version support
-The parameterized APIs (`sql_and_params`, `compose`, `fetch_rows`) compile through Django's own backend compiler and work on every Django backend. SQL you write around them can still depend on the backend's features (the CTE example needs CTEs and window functions).
+### Backend and version support
+The parameterized APIs (`sql_and_params`, `compose`, `fetch_rows`) compile through Django's own backend compiler and work on every Django backend. SQL you write around them can still depend on the backend's features (the examples under "Walk a category tree in SQL, filter it with the ORM" and under "Prefer SQL? Write it as SQL." need recursive CTEs and window functions).
 
 `executable_query` supports exactly these Django `ENGINE` values:
 
