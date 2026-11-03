@@ -2,9 +2,9 @@
 
 [![CI](https://github.com/JaredStufftGD/django-sql-compiler/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/JaredStufftGD/django-sql-compiler/actions/workflows/ci.yml)
 
-Use Django querysets inside raw SQL, safely.
+Write SQL where SQL is natural and reuse Django querysets inside it, with every value bound by the database driver.
 
-Build any queryset with the ORM (filters, joins, annotations, aggregates, `values()`) and write the rest (CTEs, window functions, anything the ORM can't express well) by hand. The ORM builds and validates the queryset, so user input never has to be pasted into SQL text: every value stays a parameter that the database driver binds, on the queryset's own database. When you need a finished literal SQL string instead (for COPY, CREATE VIEW, logs or another tool), see "Finished literal SQL" under "Choosing an API" below.
+Use the ORM and SQL side by side, much as you would use DataFrames and Spark SQL together. The ORM builds and validates querysets from user input; hand-written SQL does what reads best as SQL, such as recursion, ranking and reporting. Every value stays a parameter that the driver binds, on the queryset's own database, and the results come back as rows (dataclasses or dicts). When you need a finished literal SQL string instead (COPY, CREATE VIEW, logs or another tool), see "Finished literal SQL: executable_query" below.
 
 ## Installation
 ```
@@ -22,12 +22,103 @@ INSTALLED_APPS = [
 ]
 ```
 
-`sql_and_params()`, `compose()` and `fetch_rows()` work on plain Django querysets with no custom manager. `SQLCompilerManager` is only needed for the queryset methods described below (`qs.sql_and_params()` and the finished-literal-SQL property).
+This package is unrelated to Django's internal `django.db.models.sql.compiler.SQLCompiler`; only the names are similar. No public names change.
 
-## Filter with the ORM, finish in SQL.
-Any queryset works here; this example uses two filtered ones. The ORM builds and binds them, and the handwritten SQL joins the two sets, groups them, filters on the aggregate and ranks the result in one readable statement.
+## Walk a category tree in SQL, filter it with the ORM
+A user picks a root category and a price budget. The ORM turns that input into querysets, and hand-written `WITH RECURSIVE` SQL walks the tree and totals each branch.
 
-Write the handwritten SQL in your database's dialect; this example's SQL is portable (PostgreSQL, SQLite, MySQL 8).
+Models and the result type (no custom manager needed):
+
+```python
+import dataclasses
+
+from django.db import models
+from sql_compiler import compose, fetch_rows
+
+
+class Category(models.Model):
+    name = models.CharField(max_length=100)
+    parent = models.ForeignKey('self', null=True, on_delete=models.CASCADE)
+
+
+class Product(models.Model):
+    category = models.ForeignKey(Category, on_delete=models.CASCADE)
+    name = models.CharField(max_length=100)
+    price_cents = models.IntegerField()
+
+
+@dataclasses.dataclass
+class Branch:
+    name: str
+    depth: int
+    products: int
+    total_cents: int
+```
+
+Data:
+
+```python
+electronics = Category.objects.create(name='Electronics')
+books = Category.objects.create(name='Books')
+phones = Category.objects.create(name='Phones', parent=electronics)
+laptops = Category.objects.create(name='Laptops', parent=electronics)
+cases = Category.objects.create(name='Cases', parent=phones)
+novels = Category.objects.create(name='Novels', parent=books)
+
+for category, name, price in [
+    (phones, 'Pixel', 79900), (phones, 'Galaxy', 69900), (phones, 'Flagship', 129900),
+    (laptops, 'Thinkpad', 119900), (cases, 'Clear case', 1900), (cases, 'Leather case', 4900),
+    (electronics, 'Cable', 900), (novels, 'Dune', 1500),
+]:
+    Product.objects.create(category=category, name=name, price_cents=price)
+```
+
+Query:
+
+```python
+root_name = 'Electronics'      # user input, bound
+max_price_cents = 100000       # user input, bound
+
+root = Category.objects.filter(name=root_name).values('id')
+categories = Category.objects.values('id', 'name', 'parent_id')
+products = Product.objects.filter(price_cents__lte=max_price_cents).values('category_id', 'price_cents')
+
+tree = compose(
+    '''
+    WITH RECURSIVE
+        cat AS (%(categories)s),
+        prod AS (%(products)s),
+        tree(id, depth) AS (
+            SELECT id, 0 FROM (%(root)s) AS r
+            UNION ALL
+            SELECT cat.id, tree.depth + 1
+            FROM cat JOIN tree ON cat.parent_id = tree.id
+        )
+    SELECT cat.name AS name,
+           tree.depth AS depth,
+           COUNT(prod.price_cents) AS products,
+           COALESCE(SUM(prod.price_cents), 0) AS total_cents
+    FROM tree
+    JOIN cat ON cat.id = tree.id
+    LEFT JOIN prod ON prod.category_id = tree.id
+    GROUP BY cat.id, cat.name, tree.depth
+    ORDER BY tree.depth, cat.name
+    ''',
+    categories=categories,
+    products=products,
+    root=root,
+)
+rows = fetch_rows(tree, Branch)
+# [Branch(name='Electronics', depth=0, products=1, total_cents=900),
+#  Branch(name='Laptops', depth=1, products=0, total_cents=0),
+#  Branch(name='Phones', depth=1, products=2, total_cents=149800),
+#  Branch(name='Cases', depth=2, products=2, total_cents=6800)]
+```
+
+The two inputs reach the SQL only as ORM filters, so they are params that the driver binds, in placeholder order. The template names no tables, because the querysets come in as slots. Only ids and an integer depth go through the recursion, which keeps the SQL portable across PostgreSQL, SQLite and MySQL 8 (`WITH RECURSIVE`, no string paths, no `||`). MySQL returns `SUM` as `Decimal`, which compares equal to the documented ints.
+
+## Prefer SQL? Write it as SQL.
+The ORM can express this leaderboard too, and here are both versions side by side; the README tests run both and check that they return the same rows.
 
 Models and the result type (no custom manager needed):
 
@@ -77,7 +168,7 @@ for customer, placed, amount_cents in [
     Order.objects.create(customer=customer, placed=placed, amount_cents=amount_cents)
 ```
 
-Query:
+In SQL:
 
 ```python
 region = 'west'                                                     # user input, bound
@@ -108,12 +199,62 @@ rows = fetch_rows(leaderboard, RegionLeader)   # runs on leaderboard.alias ('def
 #  RegionLeader(name='Ada', orders=2, total_cents=7000, place=2)]
 ```
 
-- `region`, `start`, `end` and `min_total_cents` are all params that the driver binds. Params follow placeholder order: the CTE params first, then the HAVING value. Params are adapted by the backend, so they are not printed here.
-- The handwritten SQL references only the CTE names, so no table names are needed.
-- Output columns are aliased explicitly in lowercase, because `fetch_rows` matches names exactly.
-- The template is trusted SQL written by you, and a literal `%` in it is written `%%`. The package does not validate SQL or make interpolated identifiers safe.
+With the ORM (the same rows):
+
+```python
+from django.db.models import Count, F, Sum, Window
+from django.db.models.functions import Rank
+
+orm_rows = list(
+    Order.objects.filter(customer__region=region, placed__gte=start, placed__lt=end)
+    .values('customer_id', 'customer__name')
+    .annotate(orders=Count('id'), total_cents=Sum('amount_cents'))
+    .filter(total_cents__gte=min_total_cents)
+    .annotate(place=Window(Rank(), order_by=F('total_cents').desc()))
+    .order_by('place', 'customer__name')
+    .values_list('customer__name', 'orders', 'total_cents', 'place')
+)
+# [('Bo', 1, 9000, 1), ('Ada', 2, 7000, 2)]
+```
+
+In the SQL version, `region`, `start`, `end` and `min_total_cents` are all params that the driver binds. Params follow placeholder order: the CTE params first, then the HAVING value. Params are adapted by the backend, so they are not printed here. The handwritten SQL references only the CTE names, so no table names are needed. Output columns are aliased explicitly in lowercase, because `fetch_rows` matches names exactly. The template is trusted SQL written by you, and a literal `%` in it is written `%%`. The package does not validate SQL or make interpolated identifiers safe.
+
+## Get a queryset back
+django-cte goes the other way, SQL inside the ORM, and combines with this package: its `raw_cte_sql` accepts a `compose()` result and gives back a chainable queryset. This block continues the tree example above (it reuses `root` and `categories`) and needs django-cte 4.0 or newer.
+
+```python
+from django.db.models import IntegerField
+from django_cte import CTE, with_cte
+from django_cte.raw import raw_cte_sql
+
+budget_cents = 70000   # user input, bound
+
+subtree = compose(
+    '''
+    WITH RECURSIVE cat AS (%(categories)s), tree(id, depth) AS (
+        SELECT id, 0 FROM (%(root)s) AS r
+        UNION ALL
+        SELECT cat.id, tree.depth + 1 FROM cat JOIN tree ON cat.parent_id = tree.id
+    )
+    SELECT id, depth FROM tree
+    ''',
+    categories=categories,
+    root=root,
+)
+cte = CTE(raw_cte_sql(subtree.sql, list(subtree.params), {'id': IntegerField(), 'depth': IntegerField()}))
+under_root = with_cte(cte, select=cte.join(Product, category_id=cte.col.id).annotate(depth=cte.col.depth))
+
+cheap = under_root.filter(price_cents__lte=budget_cents).order_by('depth', 'name')
+cte_rows = list(cheap.values_list('name', 'depth', 'price_cents'))
+# [('Cable', 0, 900), ('Galaxy', 1, 69900), ('Clear case', 2, 1900), ('Leather case', 2, 4900)]
+cheap.count()   # 4
+```
+
+django-cte documents the params as a list, so pass `list(subtree.params)`. The SQL is compiled for `subtree.alias`, and django-cte does not check that the outer queryset runs there, so evaluate it on that alias (add `.using(subtree.alias)` when a router could send it elsewhere). The CTE has to be joined to a model (`cte.queryset()` does not work with `raw_cte_sql`), which is why the rows are `Product` instances.
 
 ## Choosing an API
+
+`sql_and_params()`, `compose()` and `fetch_rows()` work on plain Django querysets with no custom manager. `SQLCompilerManager` is only needed for `qs.sql_and_params()` and `executable_query`.
 
 ### SQL and params
 `sql_and_params(queryset)` returns the parameterized SQL (a `str` with Django's `%s` placeholders) and its params (a `tuple`) for any Django queryset. It compiles for the database the queryset runs on (`qs.db`, from `.using()` or your database routers), recompiles on every call, and leaves values in params for the driver to bind.
@@ -142,7 +283,7 @@ Querysets from `SQLCompilerManager` also have `qs.sql_and_params()`, which retur
 from django.db import connections
 from sql_compiler import compose
 
-# start comes from the CTE example above
+# start comes from the leaderboard in "Prefer SQL? Write it as SQL."
 result = compose(
     'WITH recent AS (%(recent)s), big AS (%(big)s) '
     'SELECT recent.id FROM recent JOIN big ON big.id = recent.id WHERE recent.amount_cents > %(min_cents)s',
@@ -171,7 +312,7 @@ with connections[result.alias].cursor() as cursor:
 ```python
 from sql_compiler import fetch_rows
 
-# leaderboard: the compose() result from the CTE example above
+# leaderboard: the compose() result from the leaderboard in "Prefer SQL? Write it as SQL."
 dicts = fetch_rows(leaderboard, dict)             # [{'name': 'Bo', 'orders': 1, 'total_cents': 9000, 'place': 1}, ...]
 leaders = fetch_rows(leaderboard, RegionLeader)   # [RegionLeader(...), ...]
 ```

@@ -1,3 +1,5 @@
+import ast
+
 import pytest
 from django.db import connections
 
@@ -12,48 +14,88 @@ def default_never_connects():
         assert connections['default'].connection is None
 
 
-@pytest.fixture
-def readme_tables_sqlite():
-    with readme_example.readme_tables(dbconfig.SQLITE_LIVE_ALIAS):
-        yield
+@pytest.mark.parametrize('name', ['tree', 'leaderboard', 'cte'])
+def test_readme_example_on_sqlite_live(name):
+    readme_example.check(name, dbconfig.SQLITE_LIVE_ALIAS)
 
 
-def test_readme_example_on_sqlite_live(readme_tables_sqlite):
-    leaderboard, rows = readme_example.run(dbconfig.SQLITE_LIVE_ALIAS)
-
-    assert leaderboard.alias == dbconfig.SQLITE_LIVE_ALIAS
-    assert rows == readme_example.EXPECTED
-
-
-def test_readme_drift_is_detected():
-    text = readme_example.README_TEXT
-    # The README's expected-rows comment disagrees with the code
-    altered = text.replace('place=1', 'place=3', 1)
+def replace_in_section(text, name, old, new):
+    heading = readme_example.SECTIONS[name][0]
+    marker = '\n' + heading + '\n'
+    head, rest = text.split(marker, 1)
+    section, separator, tail = rest.partition('\n## ')
+    assert section.count(old) == 1, 'README changed: update the drift literal {!r} in tests/test_readme.py'.format(old)
+    altered = head + marker + section.replace(old, new) + separator + tail
     assert altered != text
-    _, _, query_block = readme_example.readme_blocks(altered)
-    drifted_expected = readme_example.expected_rows(query_block, readme_example.RegionLeader)
-    assert drifted_expected != readme_example.EXPECTED
-    with readme_example.readme_tables(dbconfig.SQLITE_LIVE_ALIAS):
-        _, rows = readme_example.run(dbconfig.SQLITE_LIVE_ALIAS)
-    assert rows == readme_example.EXPECTED
-    assert rows != drifted_expected
+    return altered
 
-    # The README's data disagrees with its expected rows
-    altered = text.replace('datetime.date(2026, 3, 10), 9000', 'datetime.date(2026, 3, 10), 900', 1)
-    assert altered != text
-    _, data_block, _ = readme_example.readme_blocks(altered)
-    with readme_example.readme_tables(dbconfig.SQLITE_LIVE_ALIAS):
-        _, rows = readme_example.run(dbconfig.SQLITE_LIVE_ALIAS, data_block=data_block)
-    assert rows != readme_example.EXPECTED
+
+DRIFT = [
+    pytest.param('tree', 'tree', "'Pixel', 79900", "'Pixel', 7990", id='tree-data'),
+    pytest.param('tree', 'tree', 'total_cents=149800', 'total_cents=149801', id='tree-rows'),
+    pytest.param(
+        'leaderboard',
+        'leaderboard',
+        'datetime.date(2026, 3, 10), 9000',
+        'datetime.date(2026, 3, 10), 900',
+        id='leaderboard-data',
+    ),
+    pytest.param(
+        'leaderboard',
+        'leaderboard',
+        "RegionLeader(name='Bo', orders=1, total_cents=9000, place=1)",
+        "RegionLeader(name='Bo', orders=1, total_cents=9000, place=3)",
+        id='leaderboard-rows',
+    ),
+    pytest.param('leaderboard', 'leaderboard', "('Bo', 1, 9000, 1)", "('Bo', 1, 9000, 2)", id='leaderboard-orm-rows'),
+    pytest.param(
+        'leaderboard',
+        'leaderboard',
+        "F('total_cents').desc()",
+        "F('total_cents').asc()",
+        id='leaderboard-orm-code',
+    ),
+    pytest.param('cte', 'cte', 'budget_cents = 70000', 'budget_cents = 50000', id='cte-data'),
+    pytest.param('cte', 'cte', "('Galaxy', 1, 69900)", "('Galaxy', 1, 69901)", id='cte-rows'),
+]
+
+
+@pytest.mark.parametrize('name, section, old, new', DRIFT)
+def test_readme_drift_is_detected(name, section, old, new):
+    altered = replace_in_section(readme_example.README_TEXT, section, old, new)
+
+    with pytest.raises(AssertionError):
+        readme_example.check(name, dbconfig.SQLITE_LIVE_ALIAS, altered)
 
 
 def test_readme_parse_guards():
-    heading = readme_example.HEADING
+    tree_heading = readme_example.SECTIONS['tree'][0]
+    leaderboard_heading = readme_example.SECTIONS['leaderboard'][0]
     block = '```python\nx = 1\n```\n'
+    branch = {'Branch': readme_example.Branch}
 
     with pytest.raises(ValueError):
-        readme_example.readme_blocks('no example section here')
+        readme_example.section_blocks('no example section here', 'tree')
     with pytest.raises(ValueError):
-        readme_example.readme_blocks('{}\n\n{}{}\n## Next\n'.format(heading, block, block))
+        readme_example.section_blocks('\n{}\n\n{}\n{}\n\n{}'.format(tree_heading, block, block, block) * 2, 'tree')
     with pytest.raises(ValueError):
-        readme_example.expected_rows('rows = fetch_rows(leaderboard, RegionLeader)\n', readme_example.RegionLeader)
+        readme_example.section_blocks(
+            '\n{}\n\n{}{}{}\n## Next\n'.format(leaderboard_heading, block, block, block), 'leaderboard'
+        )
+    with pytest.raises(ValueError):
+        readme_example.expected_rows('rows = fetch_rows(tree, Branch)\n', 'rows = fetch_rows(tree', 4, branch)
+    with pytest.raises(ValueError):
+        readme_example.expected_rows(
+            "rows = fetch_rows(tree, Branch)\n# [Branch(name='a', depth=0, products=0, total_cents=0)]\n",
+            'rows = fetch_rows(tree',
+            4,
+            branch,
+        )
+    with pytest.raises(ValueError):
+        readme_example.expected_rows('x = 1\n', 'cte_rows = ', 4)
+    with pytest.raises(ValueError):
+        readme_example.expected_rows("cte_rows = []\n# [('a', 0, 1)]\n", 'cte_rows = ', 4)
+    with pytest.raises(ValueError):
+        readme_example.with_meta(
+            ast.parse('class Category(models.Model):\n    class Meta:\n        pass\n'), {'Category': 'x'}
+        )
