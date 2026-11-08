@@ -1,10 +1,13 @@
 """
-Runs README.md's headline example (the three python blocks under the "Filter with the ORM" heading).
-The code comes from the README text itself, so editing the README changes what runs. The only test-only
-differences are the models' Meta (app_label and table names) and the database alias.
+Runs README.md's three executed examples: the recursive category tree under the "Walk a category tree in SQL,
+filter it with the ORM" heading, the leaderboard and its ORM version under "Prefer SQL? Write it as SQL.", and the
+django-cte example under "Get a queryset back", which continues the tree example. The code comes from the README text
+itself, so editing the README changes what runs. The only test-only differences are the models' Meta (app_label and
+table names) and the database alias, which a router sets.
 """
 
 import ast
+import dataclasses
 import pathlib
 import re
 from contextlib import contextmanager
@@ -13,43 +16,64 @@ from django.db import connections
 from django.test import override_settings
 
 README = pathlib.Path(__file__).resolve().parents[2] / 'README.md'
-HEADING = '## Filter with the ORM, finish in SQL.'
+CATEGORY_TABLE = 'sqlcompiler_readme_category'
+PRODUCT_TABLE = 'sqlcompiler_readme_product'
 CUSTOMER_TABLE = 'sqlcompiler_readme_customer'
 ORDER_TABLE = 'sqlcompiler_readme_order'
+SECTIONS = {
+    'tree': ('## Walk a category tree in SQL, filter it with the ORM', 3),
+    'leaderboard': ('## Prefer SQL? Write it as SQL.', 4),
+    'cte': ('## Get a queryset back', 1),
+}
 
 with open(README, encoding='utf-8') as readme_file:
     README_TEXT = readme_file.read()
 
 
-def readme_blocks(text):
-    """Returns the (models, data, query) python blocks of the README example section."""
+def section_blocks(text, name):
+    """Returns the python blocks of one README example section."""
 
-    if HEADING not in text:
-        raise ValueError('README example section changed: heading {!r} not found'.format(HEADING))
-    section = text.split(HEADING, 1)[1].split('\n## ', 1)[0]
+    heading, count = SECTIONS[name]
+    marker = '\n' + heading + '\n'
+    if text.count(marker) != 1:
+        raise ValueError(
+            'README example section changed: heading {!r} found {} times'.format(heading, text.count(marker))
+        )
+    section = text.split(marker, 1)[1].split('\n## ', 1)[0]
     blocks = re.findall(r'^```python\n(.*?)^```', section, re.S | re.M)
-    if len(blocks) != 3:
-        raise ValueError('README example section changed: expected 3 python blocks, found {}'.format(len(blocks)))
+    if len(blocks) != count:
+        raise ValueError(
+            'README example section changed: {} expected {} python blocks, found {}'.format(name, count, len(blocks))
+        )
     return blocks
 
 
-def expected_rows(query_block, row_type):
-    """Parses the README's commented expected rows that follow the fetch_rows call."""
+def expected_rows(block, prefix, row_count, names=None):
+    """Parses the README's commented expected rows that follow the first line starting with prefix."""
 
-    lines = query_block.splitlines()
-    start = next((i for i, line in enumerate(lines) if line.startswith('rows = fetch_rows(')), None)
+    lines = block.splitlines()
+    start = next((i for i, line in enumerate(lines) if line.startswith(prefix)), None)
     if start is None:
-        raise ValueError('README example section changed: no rows = fetch_rows( line')
+        raise ValueError('README example section changed: no {} line'.format(prefix))
+    first = next((i for i in range(start + 1, len(lines)) if lines[i].startswith('# [')), None)
+    if first is None:
+        raise ValueError('README example section changed: no expected-rows comment after {}'.format(prefix))
     comment = []
-    for line in lines[start + 1 :]:
+    for line in lines[first:]:
         if not line.startswith('#'):
             break
         comment.append(line[1:].removeprefix(' '))
-    if not comment:
-        raise ValueError('README example section changed: no expected-rows comment after fetch_rows')
-    rows = eval(''.join(comment), {'__builtins__': {}, 'RegionLeader': row_type})
-    if not isinstance(rows, list) or len(rows) != 2 or not all(isinstance(row, row_type) for row in rows):
-        raise ValueError('README example section changed: expected a list of 2 {} rows'.format(row_type.__name__))
+    text = ''.join(comment)
+    if isinstance(names, dict):
+        rows = eval(text, {'__builtins__': {}, **names})
+        row_types = tuple(names.values())
+    else:
+        rows = ast.literal_eval(text)
+        row_types = (tuple,)
+    if not isinstance(rows, list) or len(rows) != row_count or not all(isinstance(row, row_types) for row in rows):
+        raise ValueError(
+            'README example section changed: expected a list of {} rows after {}'.format(row_count, prefix)
+        )
     return rows
 
 
@@ -69,20 +93,36 @@ def with_meta(tree, tables):
 
 
 # Executed once at import: running the models block again would register the models twice
-MODELS_BLOCK, DATA_BLOCK, QUERY_BLOCK = readme_blocks(README_TEXT)
-MODELS = {'__name__': __name__}
+TREE_MODELS = {'__name__': __name__}
 exec(
     compile(
-        with_meta(ast.parse(MODELS_BLOCK), {'Customer': CUSTOMER_TABLE, 'Order': ORDER_TABLE}),
+        with_meta(
+            ast.parse(section_blocks(README_TEXT, 'tree')[0]),
+            {'Category': CATEGORY_TABLE, 'Product': PRODUCT_TABLE},
+        ),
         'README.md',
         'exec',
     ),
-    MODELS,
+    TREE_MODELS,
 )
-Customer = MODELS['Customer']
-Order = MODELS['Order']
-RegionLeader = MODELS['RegionLeader']
-EXPECTED = expected_rows(QUERY_BLOCK, RegionLeader)
+LEADERBOARD_MODELS = {'__name__': __name__}
+exec(
+    compile(
+        with_meta(
+            ast.parse(section_blocks(README_TEXT, 'leaderboard')[0]),
+            {'Customer': CUSTOMER_TABLE, 'Order': ORDER_TABLE},
+        ),
+        'README.md',
+        'exec',
+    ),
+    LEADERBOARD_MODELS,
+)
+Category = TREE_MODELS['Category']
+Product = TREE_MODELS['Product']
+Branch = TREE_MODELS['Branch']
+Customer = LEADERBOARD_MODELS['Customer']
+Order = LEADERBOARD_MODELS['Order']
+RegionLeader = LEADERBOARD_MODELS['RegionLeader']
 
 
 class Router:
@@ -98,24 +138,16 @@ class Router:
         return self.alias
 
 
-def run(alias, data_block=DATA_BLOCK, query_block=QUERY_BLOCK):
-    """Runs the README data and query blocks on alias. Returns (leaderboard, rows)."""
-
-    namespace = dict(MODELS)
-    with override_settings(DATABASE_ROUTERS=[Router(alias)]):
-        exec(compile(data_block, 'README.md', 'exec'), namespace)
-        exec(compile(query_block, 'README.md', 'exec'), namespace)
-    return namespace['leaderboard'], namespace['rows']
-
-
 @contextmanager
 def readme_tables(alias):
     connection = connections[alias]
     with connection.schema_editor() as editor:
         existing = connection.introspection.table_names()
-        for model in (Order, Customer):
+        for model in (Order, Customer, Product, Category):
             if model._meta.db_table in existing:
                 editor.delete_model(model)
+        editor.create_model(Category)
+        editor.create_model(Product)
         editor.create_model(Customer)
         editor.create_model(Order)
     try:
@@ -124,3 +156,79 @@ def readme_tables(alias):
         with connection.schema_editor() as editor:
             editor.delete_model(Order)
             editor.delete_model(Customer)
+            editor.delete_model(Product)
+            editor.delete_model(Category)
+
+
+class ReadmeMismatch(AssertionError):
+    """Raised when a README example disagrees with its documented rows or values."""
+
+
+def documented_count(block):
+    """Returns N from the README's `cheap.count()   # N` comment."""
+
+    found = re.search(r'^cheap\.count\(\)\s+#\s*(\d+)\s*$', block, re.M)
+    if found is None:
+        raise ValueError('README example section changed: no cheap.count() comment')
+    return int(found.group(1))
+
+
+def mismatch(name, what, actual, expected):
+    raise ReadmeMismatch('README {} example: {}: got {!r}, expected {!r}'.format(name, what, actual, expected))
+
+
+def run_blocks(blocks, namespace):
+    for block in blocks:
+        exec(compile(block, 'README.md', 'exec'), namespace)
+
+
+def check(name, alias, text=README_TEXT):
+    """Runs one README example on alias and raises ReadmeMismatch when it disagrees with its documented rows."""
+
+    blocks = section_blocks(text, name)
+    with readme_tables(alias), override_settings(DATABASE_ROUTERS=[Router(alias)]):
+        if name == 'tree':
+            ns = dict(TREE_MODELS)
+            expected = expected_rows(blocks[2], 'rows = fetch_rows(tree', 4, {'Branch': Branch})
+            run_blocks(blocks[1:3], ns)
+            if ns['tree'].alias != alias:
+                mismatch(name, 'alias', ns['tree'].alias, alias)
+            if ns['rows'] != expected:
+                mismatch(name, 'rows', ns['rows'], expected)
+        elif name == 'leaderboard':
+            ns = dict(LEADERBOARD_MODELS)
+            expected = expected_rows(blocks[2], 'rows = fetch_rows(leaderboard', 2, {'RegionLeader': RegionLeader})
+            expected_orm = expected_rows(blocks[3], 'orm_rows = ', 2)
+            run_blocks(blocks[1:4], ns)
+            orm_rows = list(ns['orm_rows'])
+            compose_tuples = [dataclasses.astuple(row) for row in ns['rows']]
+            if ns['leaderboard'].alias != alias:
+                mismatch(name, 'alias', ns['leaderboard'].alias, alias)
+            if ns['rows'] != expected:
+                mismatch(name, 'compose rows', ns['rows'], expected)
+            if compose_tuples != orm_rows:
+                mismatch(name, 'compose rows vs ORM rows', compose_tuples, orm_rows)
+            if orm_rows != expected_orm:
+                mismatch(name, 'ORM rows', orm_rows, expected_orm)
+            if [dataclasses.astuple(row) for row in expected] != expected_orm:
+                mismatch(name, 'documented rows', [dataclasses.astuple(row) for row in expected], expected_orm)
+        elif name == 'cte':
+            tree_blocks = section_blocks(text, 'tree')
+            cte_block = blocks[0]
+            ns = dict(TREE_MODELS)
+            expected = expected_rows(cte_block, 'cte_rows = ', 4)
+            count = documented_count(cte_block)
+            run_blocks([tree_blocks[1], tree_blocks[2], cte_block], ns)
+            if ns['subtree'].alias != alias:
+                mismatch(name, 'alias', ns['subtree'].alias, alias)
+            if ns['cte_rows'] != expected:
+                mismatch(name, 'rows', ns['cte_rows'], expected)
+            if ns['cheap'].count() != len(expected):
+                mismatch(name, 'count', ns['cheap'].count(), len(expected))
+            if ns['cheap'].count() != count:
+                mismatch(name, 'count comment', ns['cheap'].count(), count)
+            if type(ns['cheap'].first()) is not Product:
+                mismatch(name, 'row type', type(ns['cheap'].first()), Product)
+        else:
+            raise ValueError('unknown README example {!r}'.format(name))
+    return ns

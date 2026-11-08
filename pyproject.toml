@@ -1,9 +1,9 @@
 [project]
 name = "django-sql-compiler"
 version = "1.0.0"
-description = "Use Django querysets inside raw SQL, safely."
+description = "Write SQL where SQL is natural and reuse Django querysets inside it, with every value bound by the database driver."
 readme = "README.md"
-keywords = ["django", "raw sql", "cte", "subquery", "queryset", "sql composition"]
+keywords = ["django", "raw sql", "cte", "subquery", "queryset", "sql composition", "recursive cte", "analytics"]
 authors = [
     { name = "Grok Data / Jared Stufft", email = "jared@grokdata.tech" },
 ]
@@ -52,8 +52,12 @@ pg3 = [
 mysql = [
     "mysqlclient>=2.2.1",
 ]
+cte = [
+    "django-cte>=4.0.0",
+]
 
 [tool.uv]
+default-groups = ["dev", "cte"]
 conflicts = [
     [{ group = "pg2" }, { group = "pg3" }],
 ]
