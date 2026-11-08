@@ -58,6 +58,11 @@ DRIFT = [
     ),
     pytest.param('cte', 'cte', 'budget_cents = 70000', 'budget_cents = 50000', id='cte-data'),
     pytest.param('cte', 'cte', "('Galaxy', 1, 69900)", "('Galaxy', 1, 69901)", id='cte-rows'),
+    pytest.param('tree', 'tree', 'max_price_cents = 100000', 'max_price_cents = 1000000', id='tree-max-price'),
+    pytest.param(
+        'leaderboard', 'leaderboard', 'min_total_cents = 5000', 'min_total_cents = 8000', id='leaderboard-having'
+    ),
+    pytest.param('cte', 'cte', 'cheap.count()   # 4', 'cheap.count()   # 5', id='cte-count'),
 ]
 
 
@@ -65,7 +70,7 @@ DRIFT = [
 def test_readme_drift_is_detected(name, section, old, new):
     altered = replace_in_section(readme_example.README_TEXT, section, old, new)
 
-    with pytest.raises(AssertionError):
+    with pytest.raises(readme_example.ReadmeMismatch, match='^README {} example: '.format(name)):
         readme_example.check(name, dbconfig.SQLITE_LIVE_ALIAS, altered)
 
 
@@ -96,6 +101,9 @@ def test_readme_parse_guards():
         readme_example.expected_rows('x = 1\n', 'cte_rows = ', 4)
     with pytest.raises(ValueError):
         readme_example.expected_rows("cte_rows = []\n# [('a', 0, 1)]\n", 'cte_rows = ', 4)
+    with pytest.raises(ValueError):
+        readme_example.documented_count('cheap.count()\n')
+    assert readme_example.documented_count('cheap.count()   # 4\n') == 4
     with pytest.raises(ValueError):
         readme_example.with_meta(
             ast.parse('class Category(models.Model):\n    class Meta:\n        pass\n'), {'Category': 'x'}

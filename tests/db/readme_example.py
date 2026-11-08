@@ -160,8 +160,21 @@ def readme_tables(alias):
             editor.delete_model(Category)
 
 
+class ReadmeMismatch(AssertionError):
+    """Raised when a README example disagrees with its documented rows or values."""
+
+
+def documented_count(block):
+    """Returns N from the README's `cheap.count()   # N` comment."""
+
+    found = re.search(r'^cheap\.count\(\)\s+#\s*(\d+)\s*$', block, re.M)
+    if found is None:
+        raise ValueError('README example section changed: no cheap.count() comment')
+    return int(found.group(1))
+
+
 def mismatch(name, what, actual, expected):
-    raise AssertionError('README {} example: {}: got {!r}, expected {!r}'.format(name, what, actual, expected))
+    raise ReadmeMismatch('README {} example: {}: got {!r}, expected {!r}'.format(name, what, actual, expected))
 
 
 def run_blocks(blocks, namespace):
@@ -170,7 +183,7 @@ def run_blocks(blocks, namespace):
 
 
 def check(name, alias, text=README_TEXT):
-    """Runs one README example on alias and raises AssertionError when it disagrees with its documented rows."""
+    """Runs one README example on alias and raises ReadmeMismatch when it disagrees with its documented rows."""
 
     blocks = section_blocks(text, name)
     with readme_tables(alias), override_settings(DATABASE_ROUTERS=[Router(alias)]):
@@ -204,6 +217,7 @@ def check(name, alias, text=README_TEXT):
             cte_block = blocks[0]
             ns = dict(TREE_MODELS)
             expected = expected_rows(cte_block, 'cte_rows = ', 4)
+            count = documented_count(cte_block)
             run_blocks([tree_blocks[1], tree_blocks[2], cte_block], ns)
             if ns['subtree'].alias != alias:
                 mismatch(name, 'alias', ns['subtree'].alias, alias)
@@ -211,6 +225,8 @@ def check(name, alias, text=README_TEXT):
                 mismatch(name, 'rows', ns['cte_rows'], expected)
             if ns['cheap'].count() != len(expected):
                 mismatch(name, 'count', ns['cheap'].count(), len(expected))
+            if ns['cheap'].count() != count:
+                mismatch(name, 'count comment', ns['cheap'].count(), count)
             if type(ns['cheap'].first()) is not Product:
                 mismatch(name, 'row type', type(ns['cheap'].first()), Product)
         else:
