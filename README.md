@@ -2,9 +2,9 @@
 
 [![CI](https://github.com/JaredStufftGD/django-sql-compiler/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/JaredStufftGD/django-sql-compiler/actions/workflows/ci.yml)
 
-Write SQL where SQL is natural and reuse Django querysets inside it, with every value bound by the database driver.
+If you learned SQL before the Django ORM, you may find that some queries you need to execute feel more natural to read and write in SQL. At the same time, the Django ORM gives you a clear, safe path for incorporating user inputs and dynamic operations such as filters that are challenging to put into a query string. This package gives you the best of both worlds; compose ORM querysets into a plain-text SQL query to use each path where they feel best.
 
-Use the ORM and SQL side by side, much as you would use DataFrames and Spark SQL together. The ORM builds and validates querysets from user input; hand-written SQL does what reads best as SQL, such as recursion, ranking and reporting. Every value stays a parameter that the driver binds, on the queryset's own database, and the results come back as rows (dataclasses or dicts). When you need a finished literal SQL string instead (COPY, CREATE VIEW, logs or another tool), see "Finished literal SQL: executable_query" below.
+Use the ORM and SQL side by side; the ORM builds and validates querysets from user input; hand-written SQL does what reads best as SQL, such as recursion, ranking and reporting. Every value stays a parameter that the driver binds, on the queryset's own database, and the results come back as rows (dataclasses or dicts). When you need a finished literal SQL string instead (COPY, CREATE VIEW, logs or another tool), see "Finished literal SQL: executable_query" below.
 
 ## Installation
 ```
