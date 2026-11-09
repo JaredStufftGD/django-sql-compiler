@@ -50,3 +50,23 @@ def test_route_b_q2_mismatch_sqlite_result_on_default_query():
 
 def test_route_b_q2_mismatch_default_result_on_sqlite_live_query():
     cases.check_q2_mismatch('default', 'sqlite_live')
+
+
+def test_route_b_writes_sqlite(spike_sqlite):
+    cases.check_b_writes(spike_sqlite)
+
+
+def test_route_b_writes_hazard_unguarded_update_sqlite(spike_sqlite):
+    cases.check_b_writes_hazard_unguarded_update(spike_sqlite)
+
+
+def test_route_b_rowshape_sqlite(spike_sqlite):
+    cases.check_b_rowshape(spike_sqlite)
+
+
+def test_route_b_joins_sqlite(spike_sqlite):
+    cases.check_b_joins(spike_sqlite)
+
+
+def test_route_b_joins_hazard_real_to_derived_sqlite(spike_sqlite):
+    cases.check_b_joins_hazard_real_to_derived(spike_sqlite)

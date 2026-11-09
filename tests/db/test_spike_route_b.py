@@ -39,3 +39,23 @@ def test_route_b_q2_mismatch_default_result_on_sqlite_live(db_under_test, spike_
 
 def test_route_b_q2_mismatch_sqlite_live_result_on_default(db_under_test, spike_default, spike_sqlite):
     cases.check_q2_mismatch('sqlite_live', 'default')
+
+
+def test_route_b_writes_default(db_under_test, spike_default):
+    cases.check_b_writes('default')
+
+
+def test_route_b_writes_hazard_unguarded_update_default(db_under_test, spike_default):
+    cases.check_b_writes_hazard_unguarded_update('default')
+
+
+def test_route_b_rowshape_default(db_under_test, spike_default):
+    cases.check_b_rowshape('default')
+
+
+def test_route_b_joins_default(db_under_test, spike_default):
+    cases.check_b_joins('default')
+
+
+def test_route_b_joins_hazard_real_to_derived_default(db_under_test, spike_default):
+    cases.check_b_joins_hazard_real_to_derived('default')
