@@ -98,3 +98,13 @@ def things_other(things):
     yield
     with other.schema_editor() as editor:
         editor.delete_model(Thing)
+
+
+@pytest.fixture(scope='session')
+def spike_default(things):
+    # Imported here: this conftest loads before pytest_configure sets up Django
+    from . import spike_models
+
+    spike_models.install('default')
+    yield 'default'
+    spike_models.uninstall('default')

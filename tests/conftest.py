@@ -17,7 +17,7 @@ def pytest_configure(config):
     # Pinned timezone keeps expected datetime strings stable
     settings.configure(
         DATABASES=databases,
-        INSTALLED_APPS=[],
+        INSTALLED_APPS=['tests'],
         USE_TZ=True,
         TIME_ZONE='UTC',
     )
@@ -72,3 +72,13 @@ def things_sqlite():
     yield alias
     with connection.schema_editor() as editor:
         editor.delete_model(Thing)
+
+
+@pytest.fixture(scope='session')
+def spike_sqlite(things_sqlite):
+    # Imported here: Django is configured in pytest_configure
+    from tests.db import spike_models
+
+    spike_models.install(things_sqlite)
+    yield things_sqlite
+    spike_models.uninstall(things_sqlite)
