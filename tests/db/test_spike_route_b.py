@@ -59,3 +59,19 @@ def test_route_b_joins_default(db_under_test, spike_default):
 
 def test_route_b_joins_hazard_real_to_derived_default(db_under_test, spike_default):
     cases.check_b_joins_hazard_real_to_derived('default')
+
+
+def test_route_b_reads_default(db_under_test, spike_default):
+    cases.check_b_reads('default')
+
+
+def test_route_b_cte_compare_default(db_under_test, spike_default):
+    cases.check_b_cte_compare('default')
+
+
+def test_route_b_mechanisms_default(db_under_test, spike_default):
+    cases.check_b_mechanisms('default')
+
+
+def test_route_b_trim_start_default(db_under_test, spike_default):
+    cases.check_b_trim_start('default')

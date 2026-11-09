@@ -6,10 +6,15 @@ import pickle
 import warnings
 
 import pytest
+from django.core.paginator import Paginator
 from django.db import connections, transaction
-from django.db.models import Case, Count, QuerySet, Value, When
+from django.db.models import Case, Count, F, IntegerField, QuerySet, Sum, Value, When
+from django.db.models.sql.datastructures import BaseTable
+from django.db.models.sql.query import Query
 from django.db.utils import DatabaseError
 from django.test.utils import CaptureQueriesContext
+from django_cte import CTE, with_cte
+from django_cte.raw import raw_cte_sql
 
 from sql_compiler import compose, fetch_rows, sql_and_params
 from sql_compiler.spike_b import DerivedQuerySet, DerivedTable, derived
@@ -385,3 +390,145 @@ def check_b_joins_hazard_real_to_derived(alias):
 
     with pytest.raises(DatabaseError):
         list(SpikeItem.objects.using(alias).select_related('thing'))
+
+
+def check_b_reads(alias):
+    """The read API a derived queryset supports; select_related and prefetch_related are in check_b_joins."""
+
+    qs = route_b_qs(alias)
+    expected = [2, 3, 5, 6, 7, 8]
+    assert qs.count() == len(expected)
+    assert qs.exists()
+    assert qs.filter(id=-1).exists() is False
+    assert list(qs.none()) == []
+    assert list(qs.order_by('id').values('id', 'name')) == [
+        {'id': i, 'name': n}
+        for i, n in Thing.objects.using(alias).filter(id__in=expected).order_by('id').values_list('id', 'name')
+    ]
+    assert list(qs.order_by('id').values_list('id', flat=True)) == expected
+    assert qs.aggregate(total=Sum('n')) == {'total': 27}
+    assert list(qs.annotate(double=F('n') * 2).order_by('id').values_list('id', 'double')) == [
+        (2, 4),
+        (3, 6),
+        (5, 8),
+        (6, 10),
+        (7, 12),
+        (8, 14),
+    ]
+    assert [row.id for row in qs.order_by('id').iterator()] == expected
+    assert [row.id for row in qs.order_by('id')[1:3]] == [3, 5]
+    paginator = Paginator(qs.order_by('id'), 2)
+    assert paginator.count == 6
+    assert [row.id for row in paginator.page(2).object_list] == [5, 6]
+    low, high = qs.filter(n__lte=3), qs.filter(n__gte=6)
+    union = low.values_list('id', flat=True).union(high.values_list('id', flat=True))
+    assert sorted(union) == [2, 3, 7, 8]
+    assert ids(low | high) == [2, 3, 7, 8]
+
+
+def recipe(alias, result, refs=None, params=None):
+    """The README 'Get a queryset back' recipe on a result selecting only id."""
+
+    refs = refs or {'id': IntegerField()}
+    cte = CTE(raw_cte_sql(result.sql, list(result.params) if params is None else params, refs))
+    return cte, with_cte(cte, select=cte.join(Thing, id=cte.col.id))
+
+
+def check_b_cte_compare(alias):
+    """
+    The three README django-cte limits against the native route.
+    1. The CTE must be joined to a model: cte.queryset() fails with raw_cte_sql (AttributeError); the native route
+       needs no join but needs a declared DerivedModel per row shape (its own requirement).
+    2. No alias check: the recipe compiles for any alias; the native route raises the spike ValueError.
+    3. Params documented as a list: a tuple works the same here.
+    Pickling: the recipe's query cannot be pickled (local class), a deep copy works; the native route pickles.
+    """
+
+    result = compose('SELECT x.id FROM (%(q)s) x WHERE x.n >= %(lo)s', q=things(alias).values('id', 'n'), lo=2)
+    cte, qs = recipe(alias, result)
+    got = list(qs.using(alias).order_by('id'))
+    assert [row.id for row in got] == [2, 3, 5, 6, 7, 8]
+    assert all(type(row) is Thing for row in got)
+    native = route_b_qs(alias)
+    assert all(type(row) is SpikeDerivedThing for row in native)
+    assert ids(native) == [2, 3, 5, 6, 7, 8]
+    with pytest.raises(AttributeError):
+        cte.queryset()
+
+    other = 'sqlite_live' if alias == 'default' else 'default'
+    sql, params = sql_and_params(qs.using(other))
+    assert params == (2,)
+    assert str(qs.using(other).query).startswith('WITH')
+    with pytest.raises(ValueError) as excinfo:
+        sql_and_params(native.using(other))
+    assert str(excinfo.value) == mismatch_message(alias, other)
+
+    _, tuple_qs = recipe(alias, result, params=result.params)
+    assert ids(tuple_qs.using(alias).filter(n__lte=6)) == [2, 3, 5, 6, 7]
+    _, list_qs = recipe(alias, result, params=list(result.params))
+    assert ids(list_qs.using(alias).filter(n__lte=6)) == [2, 3, 5, 6, 7]
+    assert sql_and_params(tuple_qs.using(alias).filter(n__lte=6)) == sql_and_params(
+        list_qs.using(alias).filter(n__lte=6)
+    )
+    assert sql_and_params(tuple_qs.using(alias).filter(n__lte=6))[1] == (2, 6)
+
+    assert ids(copy.deepcopy(qs).using(alias)) == [2, 3, 5, 6, 7, 8]
+    with pytest.raises((pickle.PicklingError, AttributeError)):
+        pickle.dumps(qs.query)
+    assert ids(pickle.loads(pickle.dumps(native)).using(alias)) == [2, 3, 5, 6, 7, 8]
+
+    label = compose(
+        "SELECT x.id FROM (%(q)s) x WHERE x.label = 'a%%'", q=SpikeLabel.objects.using(alias).values('id', 'label')
+    )
+    assert label.params == ()
+    _, label_qs = recipe(alias, label)
+    assert [row.id for row in label_qs.using(alias)] == [1]
+
+
+def check_b_mechanisms(alias):
+    """Rejected mechanisms, pinned: SQL passed as a table name is quoted as an identifier and cannot carry params."""
+
+    with pytest.raises(DatabaseError):
+        list(Thing.objects.using(alias).extra(tables=['(SELECT 1 AS id) h']))
+    qs = QuerySet(model=SpikeDerivedThing, using=alias)
+    table_alias = qs.query.get_initial_alias()
+    qs.query.alias_map[table_alias] = BaseTable('(SELECT id, name, n FROM sqlcompiler_thing) h', table_alias)
+    with pytest.raises(DatabaseError):
+        list(qs)
+
+
+def check_b_trim_start(alias):
+    """
+    trim_start (called by split_exclude for multi-valued excludes) is probed with a spy on four shapes. Observed on
+    Django 6.1.2: reached twice (the two multi-valued excludes), never on a query that holds a DerivedTable: the
+    exclusion subquery is built over the related model and trims the join to the derived table away, so the
+    derived SQL is never trimmed and all four results are correct. Shapes 2 and 3 do not reach trim_start.
+    """
+
+    seen = []
+    original = Query.trim_start
+
+    def spy(self, names_with_path):
+        seen.append(any(isinstance(table, DerivedTable) for table in self.alias_map.values()))
+        return original(self, names_with_path)
+
+    items = compose(
+        'SELECT x.id, x.thing_id, x.flag FROM (%(q)s) x WHERE x.id <= %(k)s',
+        q=SpikeItem.objects.using(alias).values('id', 'thing_id', 'flag'),
+        k=3,
+    )
+    Query.trim_start = spy
+    try:
+        shape1 = ids(route_b_qs(alias).exclude(items__flag=True))
+        shape2 = ids(derived(SpikeDerivedItem, items).exclude(thing__name='x'))
+        sub = route_b_qs(alias).values('pk')
+        shape3 = ids(Thing.objects.using(alias).exclude(pk__in=sub))
+        shape4 = ids(route_b_qs(alias).filter(items__flag=True).exclude(items__label='i1'))
+    finally:
+        Query.trim_start = original
+    assert shape1 == [3, 5, 6, 7, 8]
+    assert shape2 == [1, 2, 3]
+    assert shape3 == [1, 4]
+    assert shape4 == [2]
+    assert seen
+    assert not any(seen)

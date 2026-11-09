@@ -70,3 +70,19 @@ def test_route_b_joins_sqlite(spike_sqlite):
 
 def test_route_b_joins_hazard_real_to_derived_sqlite(spike_sqlite):
     cases.check_b_joins_hazard_real_to_derived(spike_sqlite)
+
+
+def test_route_b_reads_sqlite(spike_sqlite):
+    cases.check_b_reads(spike_sqlite)
+
+
+def test_route_b_cte_compare_sqlite(spike_sqlite):
+    cases.check_b_cte_compare(spike_sqlite)
+
+
+def test_route_b_mechanisms_sqlite(spike_sqlite):
+    cases.check_b_mechanisms(spike_sqlite)
+
+
+def test_route_b_trim_start_sqlite(spike_sqlite):
+    cases.check_b_trim_start(spike_sqlite)
