@@ -50,3 +50,47 @@ def test_route_a_q2_mismatch_default_result_on_sqlite_live_query():
 
 def test_route_a_q2_hazard_rawsql_no_alias_check_sqlite():
     cases.check_q2_hazard_rawsql_no_alias_check('sqlite_live', 'default')
+
+
+def test_route_a_a_in_exists_join_sqlite(spike_sqlite):
+    cases.check_a_in_exists_join(spike_sqlite)
+
+
+def test_route_a_a_null_sqlite(spike_sqlite):
+    cases.check_a_null(spike_sqlite)
+
+
+def test_route_a_a_null_hazard_not_in_sqlite(spike_sqlite):
+    cases.check_a_null_hazard_not_in(spike_sqlite)
+
+
+def test_route_a_a_composite_sqlite(spike_sqlite):
+    cases.check_a_composite(spike_sqlite)
+
+
+def test_route_a_a_composite_row_value_sqlite(spike_sqlite):
+    cases.check_a_composite_row_value(spike_sqlite)
+
+
+def test_route_a_a_keytypes_sqlite(spike_sqlite):
+    cases.check_a_keytypes(spike_sqlite)
+
+
+def test_route_a_a_keytypes_hazard_uuid_params_sqlite(spike_sqlite):
+    cases.check_a_keytypes_hazard_uuid_params(spike_sqlite)
+
+
+def test_route_a_a_duplicates_sqlite(spike_sqlite):
+    cases.check_a_duplicates(spike_sqlite)
+
+
+def test_route_a_a_duplicates_hazard_join_sqlite(spike_sqlite):
+    cases.check_a_duplicates_hazard_join(spike_sqlite)
+
+
+def test_route_a_a_mysql_limit_sqlite(spike_sqlite):
+    cases.check_a_mysql_limit(spike_sqlite)
+
+
+def test_route_a_a_mysql_limit_hazard_rawsql_sqlite(spike_sqlite):
+    cases.check_a_mysql_limit_hazard_rawsql(spike_sqlite)
