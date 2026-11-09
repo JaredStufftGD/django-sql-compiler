@@ -47,6 +47,17 @@ class SpikePair(models.Model):
         unique_together = [('a', 'b')]
 
 
+class SpikeBench(models.Model):
+    id = models.IntegerField(primary_key=True)
+    v = models.IntegerField()
+
+    objects = SQLCompilerManager()
+
+    class Meta:
+        app_label = 'tests'
+        db_table = 'sqlcompiler_spike_bench'
+
+
 SPIKE_MODELS = [SpikeLabel, SpikeUuid, SpikePair]
 
 SPIKE_ROWS = {
