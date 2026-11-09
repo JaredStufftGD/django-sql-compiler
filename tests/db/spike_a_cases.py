@@ -6,7 +6,7 @@ from decimal import Decimal
 import pytest
 from django.db import connections
 from django.db.models import BooleanField, CharField, Exists, IntegerField, OuterRef, UUIDField, Value
-from django.db.models.expressions import RawSQL
+from django.db.models.expressions import Expression, RawSQL
 from django.db.utils import DatabaseError, NotSupportedError
 from django.test.utils import CaptureQueriesContext
 
@@ -30,10 +30,18 @@ def mismatch_message(what, result_alias, query_alias):
     )
 
 
+class BoolProbe(Expression):
+    def as_sql(self, compiler, connection):
+        return '1 = 1', []
+
+
 def exists_extra(alias):
     # Django compiles a conditional expression that is not an Exists as `<expr> = %s` (True) on backends
-    # without a native boolean type (SQLite, MySQL), so ResultExists adds one trailing param there
-    return () if connections[alias].features.has_native_boolean_field else (True,)
+    # without a native boolean type (SQLite, MySQL), so ResultExists adds one trailing param there. Which
+    # Django versions and backends do this differs, so the expectation is read from Django itself by
+    # filtering on a plain boolean RawSQL expression and taking its params
+    probe = things(alias).filter(BoolProbe(output_field=BooleanField()))
+    return tuple(sql_and_params(probe)[1])
 
 
 def ids(qs):
